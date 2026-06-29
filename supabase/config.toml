@@ -1,0 +1,29 @@
+project_id = "zqqmxzunmxmnngeyosiv"
+
+[api]
+enabled = true
+port = 54421
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+
+[auth]
+enabled = true
+site_url = "https://flat7.onesmartbiz.pro"
+additional_redirect_urls = ["http://localhost:3000"]
+enable_anonymous_sign_ins = true
+
+[db]
+port = 54422
+shadow_port = 54420
+
+[studio]
+port = 54423
+
+[inbucket]
+port = 54424
+
+[analytics]
+port = 54427
+
+[storage]
+enabled = true
