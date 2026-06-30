@@ -12,18 +12,19 @@ export async function POST(request: Request) {
   const parsed = setupSchema.safeParse(await request.json());
   if (!parsed.success) return validationError(parsed.error);
   const admin = createAdminClient();
-  const { count } = await admin.from("households").select("id", { count: "exact", head: true });
-  if (count && count > 0) return apiError("FLAT7 is already set up. Join it with the household PIN.", 409);
 
   const recoveryCode = randomBytes(12).toString("base64url").toUpperCase();
+  const householdCode = randomBytes(4).toString("hex").toUpperCase();
   const [pinHash, recoveryHash] = await Promise.all([hash(parsed.data.pin), hash(recoveryCode)]);
   const { error } = await admin.rpc("initialize_household", {
     p_auth_user_id: user.id,
+    p_household_name: parsed.data.householdName,
+    p_household_code: householdCode,
     p_profile_name: parsed.data.profileName,
     p_room_name: parsed.data.roomName,
     p_pin_hash: pinHash,
     p_recovery_hash: recoveryHash,
   });
   if (error) return apiError(error.message, 500);
-  return Response.json({ recoveryCode }, { status: 201 });
+  return Response.json({ householdCode, recoveryCode }, { status: 201 });
 }

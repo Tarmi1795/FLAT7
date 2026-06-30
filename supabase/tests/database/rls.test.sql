@@ -7,6 +7,8 @@ values ('00000000-0000-4000-8000-000000000001','00000000-0000-0000-0000-00000000
 
 select public.initialize_household(
   '00000000-0000-4000-8000-000000000001',
+  'Test household',
+  'A1B2C3D4',
   'Test person',
   'Test room',
   'not-a-real-pin-hash',

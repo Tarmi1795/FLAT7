@@ -16,13 +16,17 @@ export async function POST(request: Request) {
   const { count } = await admin.from("access_attempts").select("id", { count: "exact", head: true }).eq("fingerprint", fingerprint).gte("created_at", cutoff);
   if ((count || 0) >= 5) return apiError("Too many attempts. Try again in 15 minutes.", 429);
 
-  const { data: household } = await admin.from("households").select("id").limit(1).maybeSingle();
-  if (!household) return apiError("FLAT7 has not been set up yet.", 404);
+  const householdCode = parsed.data.householdCode.toUpperCase();
+  const { data: household } = await admin.from("households").select("id").eq("join_code", householdCode).maybeSingle();
+  if (!household) {
+    await admin.from("access_attempts").insert({ fingerprint, auth_user_id: user.id });
+    return apiError("Household code or PIN is not correct.", 401);
+  }
   const { data: secret } = await admin.from("household_secrets").select("pin_hash").eq("household_id", household.id).single();
   const valid = secret ? await verify(secret.pin_hash, parsed.data.pin) : false;
   if (!valid) {
     await admin.from("access_attempts").insert({ fingerprint, auth_user_id: user.id });
-    return apiError("That PIN is not correct.", 401);
+    return apiError("Household code or PIN is not correct.", 401);
   }
   const { data: profile } = await admin.from("profiles").select("id").eq("household_id", household.id).eq("is_active", true).order("created_at").limit(1).single();
   const { error } = await admin.from("device_memberships").upsert({ auth_user_id: user.id, household_id: household.id, selected_profile_id: profile?.id }, { onConflict: "auth_user_id" });

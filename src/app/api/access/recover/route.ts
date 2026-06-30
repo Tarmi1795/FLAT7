@@ -10,7 +10,8 @@ export async function POST(request: Request) {
   const parsed = recoverSchema.safeParse(await request.json());
   if (!parsed.success) return validationError(parsed.error);
   const admin = createAdminClient();
-  const { data: secret } = await admin.from("household_secrets").select("household_id,recovery_hash").limit(1).single();
+  const { data: household } = await admin.from("households").select("id").eq("join_code", parsed.data.householdCode.toUpperCase()).maybeSingle();
+  const { data: secret } = household ? await admin.from("household_secrets").select("household_id,recovery_hash").eq("household_id", household.id).single() : { data: null };
   if (!secret || !(await verify(secret.recovery_hash, parsed.data.recoveryCode.toUpperCase()))) return apiError("Recovery code is not valid.", 401);
   const recoveryCode = randomBytes(12).toString("base64url").toUpperCase();
   const [pinHash, recoveryHash] = await Promise.all([hash(parsed.data.pin), hash(recoveryCode)]);
