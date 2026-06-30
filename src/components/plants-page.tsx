@@ -103,7 +103,7 @@ export function PlantsPage() {
         <AddPlantDialog />
       </header>
       {data.plants.length === 0 && <section className="panel mt-7 grid min-h-52 place-items-center p-6 text-center"><div><Leaf className="mx-auto size-8 text-emerald-300" /><h2 className="mt-3 font-bold text-white">No plants yet</h2><p className="mt-1 text-sm text-slate-400">Add your first plant to start tracking its care.</p></div></section>}
-      <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="plant-grid mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {data.plants.map((plant, index) => {
           const room = data.rooms.find((item) => item.id === plant.roomId);
           const person = data.profiles.find((item) => item.id === plant.assignedProfileId);

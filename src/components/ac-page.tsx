@@ -13,7 +13,7 @@ export function ACPage() {
     <div>
       <header className="page-header"><div><p className="eyebrow">Cool & comfortable</p><h1 className="page-title">AC maintenance</h1><p className="page-description">A simple record for every unit in FLAT7.</p></div><AddACDialog /></header>
       {data.acUnits.length === 0 && <section className="panel mt-7 grid min-h-52 place-items-center p-6 text-center"><div><Snowflake className="mx-auto size-8 text-sky-300" /><h2 className="mt-3 font-bold text-white">No AC units yet</h2><p className="mt-1 text-sm text-slate-400">Add a unit to begin maintenance tracking.</p></div></section>}
-      <section className="mt-7 grid gap-4 lg:grid-cols-2">
+      <section className="ac-grid mt-7 grid gap-4 lg:grid-cols-2">
         {data.acUnits.map((unit) => {
           const room = data.rooms.find((item) => item.id === unit.roomId);
           const person = data.profiles.find((item) => item.id === unit.assignedProfileId);
