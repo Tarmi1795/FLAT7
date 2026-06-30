@@ -31,6 +31,7 @@ type HomecareContextValue = {
   undoLast: () => void;
   addPlant: (input: PlantInput) => Promise<void>;
   updatePlant: (id: string, input: PlantInput) => Promise<void>;
+  updatePlantWaterSchedule: (id: string, everyDays: number) => Promise<void>;
   deletePlant: (id: string) => Promise<void>;
   addAC: (input: ACInput) => Promise<void>;
   updateAC: (id: string, input: ACInput) => Promise<void>;
@@ -240,17 +241,34 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
 
   const updatePlant = useCallback(async (id: string, input: PlantInput) => {
     const room = data.rooms.find((item) => item.id === input.roomId);
+    const currentPlant = data.plants.find((item) => item.id === id);
+    const nextWaterDueOn = currentPlant ? new Date(new Date(currentPlant.lastWateredAt).getTime() + input.waterEveryDays * 86_400_000).toISOString().slice(0, 10) : null;
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
       const householdId = await getHouseholdId();
-      const { error } = await supabase.from("plants").update({ name: input.name, species: input.species, room_id: input.roomId, assigned_profile_id: room?.primaryProfileId, water_every_days: input.waterEveryDays, trim_every_days: input.trimEveryDays }).eq("id", id).eq("household_id", householdId);
+      const { error } = await supabase.from("plants").update({ name: input.name, species: input.species, room_id: input.roomId, assigned_profile_id: room?.primaryProfileId, water_every_days: input.waterEveryDays, next_water_due_on: nextWaterDueOn, trim_every_days: input.trimEveryDays }).eq("id", id).eq("household_id", householdId);
       if (error) throw error;
       if (input.photo) await updatePlantPhoto(id, input.photo);
       else await loadRemote();
       return;
     }
     setData((current) => ({ ...current, plants: current.plants.map((plant) => plant.id === id ? { ...plant, ...input, assignedProfileId: room?.primaryProfileId || plant.assignedProfileId, image: input.photo ? URL.createObjectURL(input.photo) : plant.image } : plant) }));
-  }, [data.rooms, getHouseholdId, loadRemote, updatePlantPhoto]);
+  }, [data.plants, data.rooms, getHouseholdId, loadRemote, updatePlantPhoto]);
+
+  const updatePlantWaterSchedule = useCallback(async (id: string, everyDays: number) => {
+    const plant = data.plants.find((item) => item.id === id);
+    if (!plant) throw new Error("Plant was not found.");
+    const nextWaterDueOn = new Date(new Date(plant.lastWateredAt).getTime() + everyDays * 86_400_000).toISOString().slice(0, 10);
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("plants").update({ water_every_days: everyDays, next_water_due_on: nextWaterDueOn }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, plants: current.plants.map((item) => item.id === id ? { ...item, waterEveryDays: everyDays } : item) }));
+  }, [data.plants, getHouseholdId, loadRemote]);
 
   const addAC = useCallback(async (input: ACInput) => {
     const room = data.rooms.find((item) => item.id === input.roomId);
@@ -467,8 +485,8 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
   }, [data.activity, getHouseholdId, loadRemote]);
 
   const value = useMemo(
-    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto }),
-    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto],
+    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, updatePlantWaterSchedule, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto }),
+    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, updatePlantWaterSchedule, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto],
   );
 
   return <HomecareContext.Provider value={value}>{children}</HomecareContext.Provider>;

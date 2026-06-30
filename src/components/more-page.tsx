@@ -6,6 +6,7 @@ import { useHomecare } from "@/components/providers";
 import { PushControl } from "@/components/push-control";
 import { ExportButton } from "@/components/export-button";
 import { DeleteEntryButton, ProfileDialog, RoomDialog } from "@/components/manage-entry-dialogs";
+import { LogoutButton } from "@/components/logout-button";
 
 const items = [
   { href: "/activity", title: "Activity history", detail: "Review, correct, or archive entries", icon: Activity },
@@ -42,6 +43,7 @@ export function MorePage() {
       </div>
       <section className="mt-6 grid gap-3 sm:grid-cols-3"><div className="security-card"><ShieldCheck className="size-5 text-emerald-300" /><div><p>Private household</p><strong>RLS protected</strong></div></div><div className="security-card"><Wifi className="size-5 text-sky-300" /><div><p>Offline queue</p><strong>Ready to sync</strong></div></div><div className="security-card"><Bell className="size-5 text-amber-200" /><div><p>Push reminders</p><strong>Assigned people</strong></div></div></section>
       <section className="panel mt-6 grid gap-5 p-5 sm:grid-cols-2 sm:p-6"><div><h2 className="font-bold text-white">Device reminders</h2><p className="mb-4 mt-1 text-sm text-slate-400">Push alerts follow the person selected on this device.</p><PushControl /></div><div><h2 className="font-bold text-white">Household export</h2><p className="mb-4 mt-1 text-sm text-slate-400">Download CSV records in one ZIP archive.</p><ExportButton /></div></section>
+      <section className="mt-6 flex flex-col gap-4 rounded-2xl border border-rose-300/15 bg-rose-300/[0.04] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"><div><h2 className="font-bold text-white">Log out on this device</h2><p className="mt-1 text-sm leading-6 text-slate-400">Return to the household join screen without deleting shared data.</p></div><LogoutButton /></section>
     </div>
   );
 }

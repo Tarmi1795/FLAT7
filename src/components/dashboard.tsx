@@ -2,20 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Activity, ArrowUpRight, Bell, CalendarDays, CheckCircle2, CreditCard, Droplets, Home, Leaf, MapPinHouse, Snowflake, Sparkles, UsersRound, WalletCards } from "lucide-react";
-import { Brand } from "@/components/brand";
-import { ProfileSwitcher } from "@/components/profile-switcher";
+import { Activity, ArrowUpRight, CalendarDays, CheckCircle2, CreditCard, Droplets, Home, Leaf, MapPinHouse, Snowflake, Sparkles, UsersRound, WalletCards } from "lucide-react";
 import { useHomecare } from "@/components/providers";
 import { StatusPill } from "@/components/status-pill";
+import { TopBar } from "@/components/top-bar";
 import { acMaintenanceDue, billStatus, dateStatus, formatQar, formatRelativeDay, plantTrimDue, plantWaterDue } from "@/lib/homecare";
-
-const topNavigation = [
-  { href: "/", label: "Dashboard" },
-  { href: "/plants", label: "Plants" },
-  { href: "/ac", label: "AC units" },
-  { href: "/bills", label: "Bills" },
-  { href: "/more", label: "Household" },
-];
 
 const glassCard = "rounded-[24px] border border-white/[0.12] bg-[#0c1715]/65 shadow-[0_24px_70px_rgba(0,0,0,.26)] backdrop-blur-xl";
 
@@ -54,13 +45,7 @@ export function Dashboard() {
       </nav>
 
       <div className="relative z-10 flex min-h-[calc(100dvh-3rem)] flex-col p-3 sm:p-5 lg:p-6">
-        <header className="flex min-h-14 items-center justify-between gap-3">
-          <Brand />
-          <nav className="hidden items-center rounded-full border border-white/[0.08] bg-white/[0.07] p-1 backdrop-blur-xl lg:flex" aria-label="Dashboard navigation">
-            {topNavigation.map((item) => <Link key={item.href} href={item.href} aria-current={item.href === "/" ? "page" : undefined} className={`flex min-h-11 items-center rounded-full px-5 text-sm font-semibold transition ${item.href === "/" ? "bg-white text-[#08130f] shadow-lg" : "text-slate-300 hover:bg-white/[0.08] hover:text-white"}`}>{item.label}</Link>)}
-          </nav>
-          <div className="flex items-center gap-2"><Link href="/more" className="hidden size-11 place-items-center rounded-full border border-white/10 bg-white/[0.07] text-slate-200 transition hover:bg-white/[0.12] sm:grid" aria-label="Notification settings"><Bell className="size-4" /></Link><ProfileSwitcher /></div>
-        </header>
+        <TopBar />
 
         <div className="mt-6 grid flex-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.14fr_.72fr_.72fr] xl:grid-rows-[minmax(0,1fr)_190px]">
           <section className="flex min-h-[430px] flex-col justify-between md:col-span-2 xl:col-span-1 xl:row-span-2">

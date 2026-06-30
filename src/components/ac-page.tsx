@@ -20,7 +20,7 @@ export function ACPage() {
           const due = acMaintenanceDue(unit);
           const status = dateStatus(due);
           return (
-            <article key={unit.id} className="panel p-5 sm:p-6">
+            <article id={`ac-${unit.id}`} key={unit.id} className="panel scroll-mt-32 p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-sky-300/10 text-sky-300"><Snowflake className="size-6" /></span><StatusPill status={status} /></div>
               <h2 className="mt-5 text-xl font-bold text-white">{unit.name}</h2>
               <div className="mt-2 flex flex-wrap gap-2"><span className="chip"><Wind className="size-3.5" />{room?.name}</span><span className="chip"><UserRound className="size-3.5" />{person?.name}</span></div>
