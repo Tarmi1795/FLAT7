@@ -24,6 +24,7 @@ export type Plant = {
   lastWateredAt: string;
   lastTrimmedAt: string;
   image?: string;
+  photoPath?: string;
 };
 
 export type ACUnit = {

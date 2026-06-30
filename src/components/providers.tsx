@@ -27,8 +27,9 @@ type HomecareContextValue = {
   setActiveProfileId: (id: string) => void;
   recordAction: (input: RecordActionInput) => ActivityItem;
   undoLast: () => void;
-  addPlant: (input: { name: string; species: string; roomId: string; waterEveryDays: number; trimEveryDays: number }) => Promise<void>;
+  addPlant: (input: { name: string; species: string; roomId: string; waterEveryDays: number; trimEveryDays: number; photo?: File }) => Promise<void>;
   addAC: (input: { name: string; roomId: string; maintenanceEveryMonths: number }) => Promise<void>;
+  updatePlantPhoto: (plantId: string, photo: File) => Promise<void>;
 };
 
 const HomecareContext = createContext<HomecareContextValue | null>(null);
@@ -57,7 +58,13 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     const profiles = ((profilesResult.data || []) as ProfileRow[]).map((row) => ({ id: row.id, name: row.name, initials: row.initials, color: row.color }));
     const rooms = ((roomsResult.data || []) as RoomRow[]).map((row) => ({ id: row.id, name: row.name, primaryProfileId: row.primary_profile_id }));
     const fallbackDate = new Date().toISOString();
-    const plants = ((plantsResult.data || []) as PlantRow[]).map((row) => ({ id: row.id, name: row.name, species: row.species || "House plant", roomId: row.room_id, assignedProfileId: row.assigned_profile_id || rooms.find((room) => room.id === row.room_id)?.primaryProfileId || profiles[0]?.id, waterEveryDays: row.water_every_days, trimEveryDays: row.trim_every_days, lastWateredAt: row.last_watered_at || row.created_at || fallbackDate, lastTrimmedAt: row.last_trimmed_at || row.created_at || fallbackDate, image: row.photo_path || undefined }));
+    const plantRows = (plantsResult.data || []) as PlantRow[];
+    const signedPlantImages = await Promise.all(plantRows.map(async (row) => {
+      if (!row.photo_path) return undefined;
+      const { data: signed } = await supabase.storage.from("plant-photos").createSignedUrl(row.photo_path, 3600);
+      return signed?.signedUrl;
+    }));
+    const plants = plantRows.map((row, index) => ({ id: row.id, name: row.name, species: row.species || "House plant", roomId: row.room_id, assignedProfileId: row.assigned_profile_id || rooms.find((room) => room.id === row.room_id)?.primaryProfileId || profiles[0]?.id, waterEveryDays: row.water_every_days, trimEveryDays: row.trim_every_days, lastWateredAt: row.last_watered_at || row.created_at || fallbackDate, lastTrimmedAt: row.last_trimmed_at || row.created_at || fallbackDate, image: signedPlantImages[index], photoPath: row.photo_path || undefined }));
     const acUnits = ((acResult.data || []) as ACRow[]).map((row) => ({ id: row.id, name: row.name, roomId: row.room_id, assignedProfileId: row.assigned_profile_id || rooms.find((room) => room.id === row.room_id)?.primaryProfileId || profiles[0]?.id, maintenanceEveryMonths: row.maintenance_every_months, lastMaintainedAt: row.last_maintained_at || row.created_at || fallbackDate }));
     const bills = ((billsResult.data || []) as BillRow[]).map((row) => { const bill = Array.isArray(row.bills) ? row.bills[0] : row.bills; return { id: row.id, name: bill.kind, amount: Number(row.amount), dueAt: row.due_on, paidAt: row.paid_at || undefined, paidByProfileId: row.paid_by_profile_id || undefined, responsibleProfileId: bill.responsible_profile_id || undefined }; });
     const activity = ((activityResult.data || []) as ActivityRow[]).map((row) => { const entity = row.type === "maintenance" ? acUnits.find((item) => item.id === row.entity_id) : row.type === "payment" ? bills.find((item) => item.id === row.entity_id) : plants.find((item) => item.id === row.entity_id); const verb = row.type === "water" ? "watered" : row.type === "trim" ? "trimmed" : row.type === "maintenance" ? "maintained" : "paid"; return { id: row.id, type: row.type, title: `${entity?.name || "Household item"} ${verb}`, detail: row.note || "Completed", occurredAt: row.occurred_at, profileId: row.profile_id }; });
@@ -142,20 +149,55 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     }
   }, [previousData]);
 
-  const addPlant = useCallback(async (input: { name: string; species: string; roomId: string; waterEveryDays: number; trimEveryDays: number }) => {
+  const uploadPlantPhoto = useCallback(async (plantId: string, householdId: string, photo: File) => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) throw new Error("Supabase is not configured.");
+    if (!navigator.onLine) throw new Error("Connect to the internet before uploading a photo.");
+    const path = `${householdId}/${plantId}/${crypto.randomUUID()}.webp`;
+    const { error: uploadError } = await supabase.storage.from("plant-photos").upload(path, photo, { contentType: "image/webp", cacheControl: "3600", upsert: false });
+    if (uploadError) throw uploadError;
+    const { error: updateError } = await supabase.from("plants").update({ photo_path: path }).eq("id", plantId).eq("household_id", householdId);
+    if (updateError) {
+      await supabase.storage.from("plant-photos").remove([path]);
+      throw updateError;
+    }
+    return path;
+  }, []);
+
+  const addPlant = useCallback(async (input: { name: string; species: string; roomId: string; waterEveryDays: number; trimEveryDays: number; photo?: File }) => {
     const room = data.rooms.find((item) => item.id === input.roomId);
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
       const user = (await supabase.auth.getUser()).data.user;
       const membership = user ? (await supabase.from("device_memberships").select("household_id").eq("auth_user_id", user.id).single()).data : null;
       if (!membership) throw new Error("Household membership was not found.");
-      const { error } = await supabase.from("plants").insert({ household_id: membership.household_id, name: input.name, species: input.species, room_id: input.roomId, assigned_profile_id: room?.primaryProfileId, water_every_days: input.waterEveryDays, trim_every_days: input.trimEveryDays });
+      const { data: plant, error } = await supabase.from("plants").insert({ household_id: membership.household_id, name: input.name, species: input.species, room_id: input.roomId, assigned_profile_id: room?.primaryProfileId, water_every_days: input.waterEveryDays, trim_every_days: input.trimEveryDays }).select("id").single();
       if (error) throw error;
+      if (input.photo) {
+        try { await uploadPlantPhoto(plant.id, membership.household_id, input.photo); }
+        catch (photoError) { await supabase.from("plants").delete().eq("id", plant.id); throw photoError; }
+      }
       await loadRemote();
       return;
     }
-    setData((current) => ({ ...current, plants: [...current.plants, { id: crypto.randomUUID(), ...input, assignedProfileId: room?.primaryProfileId || current.profiles[0].id, lastWateredAt: new Date().toISOString(), lastTrimmedAt: new Date().toISOString() }] }));
-  }, [data.rooms, loadRemote]);
+    const { photo, ...plantInput } = input;
+    setData((current) => ({ ...current, plants: [...current.plants, { id: crypto.randomUUID(), ...plantInput, image: photo ? URL.createObjectURL(photo) : undefined, assignedProfileId: room?.primaryProfileId || current.profiles[0].id, lastWateredAt: new Date().toISOString(), lastTrimmedAt: new Date().toISOString() }] }));
+  }, [data.rooms, loadRemote, uploadPlantPhoto]);
+
+  const updatePlantPhoto = useCallback(async (plantId: string, photo: File) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const user = (await supabase.auth.getUser()).data.user;
+      const membership = user ? (await supabase.from("device_memberships").select("household_id").eq("auth_user_id", user.id).single()).data : null;
+      if (!membership) throw new Error("Household membership was not found.");
+      const previousPath = data.plants.find((plant) => plant.id === plantId)?.photoPath;
+      const newPath = await uploadPlantPhoto(plantId, membership.household_id, photo);
+      if (previousPath && previousPath !== newPath) await supabase.storage.from("plant-photos").remove([previousPath]);
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, plants: current.plants.map((plant) => plant.id === plantId ? { ...plant, image: URL.createObjectURL(photo) } : plant) }));
+  }, [data.plants, loadRemote, uploadPlantPhoto]);
 
   const addAC = useCallback(async (input: { name: string; roomId: string; maintenanceEveryMonths: number }) => {
     const room = data.rooms.find((item) => item.id === input.roomId);
@@ -173,8 +215,8 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
   }, [data.rooms, loadRemote]);
 
   const value = useMemo(
-    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, addAC }),
-    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, addAC],
+    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, addAC, updatePlantPhoto }),
+    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, addAC, updatePlantPhoto],
   );
 
   return <HomecareContext.Provider value={value}>{children}</HomecareContext.Provider>;
