@@ -2,14 +2,10 @@
 
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
-import { Camera, ImagePlus, Leaf, LoaderCircle, Plus, Snowflake, Trash2, X } from "lucide-react";
+import { Camera, ImagePlus, Leaf, LoaderCircle, Plus, Snowflake, Trash2 } from "lucide-react";
+import { AppDialog } from "@/components/app-dialog";
 import { useHomecare } from "@/components/providers";
 import { optimizePlantPhoto } from "@/lib/plant-images";
-
-function Dialog({ open, title, eyebrow, onClose, children }: { open: boolean; title: string; eyebrow: string; onClose: () => void; children: React.ReactNode }) {
-  if (!open) return null;
-  return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="w-full rounded-t-[28px] border border-white/10 bg-[#0d1b13] p-5 sm:max-w-lg sm:rounded-[28px] sm:p-6" role="dialog" aria-modal="true"><div className="flex items-start justify-between"><div><p className="eyebrow">{eyebrow}</p><h2 className="mt-2 text-2xl font-bold text-white">{title}</h2></div><button className="icon-button" onClick={onClose} aria-label={`Close ${title}`}><X className="size-5" /></button></div>{children}</section></div>;
-}
 
 export function AddPlantDialog() {
   const { data, addPlant } = useHomecare();
@@ -82,7 +78,7 @@ export function AddPlantDialog() {
 
   return <>
     <button className="secondary-button" onClick={() => setOpen(true)}><Plus className="size-4" /> Add plant</button>
-    <Dialog open={open} title="Add a plant" eyebrow="New living thing" onClose={close}>
+    <AppDialog open={open} title="Add a plant" eyebrow="New living thing" onClose={close}>
       <form className="mt-6 space-y-4" onSubmit={submit}>
         <fieldset>
           <legend className="field-label">Plant photo <span className="font-normal text-slate-500">(optional)</span></legend>
@@ -114,7 +110,7 @@ export function AddPlantDialog() {
         {error && <p className="text-sm text-rose-300" role="alert">{error}</p>}
         <button className="primary-button w-full" disabled={loading || processingPhoto}>{loading ? <LoaderCircle className="size-4 animate-spin" /> : <Leaf className="size-4" />}Save plant</button>
       </form>
-    </Dialog>
+    </AppDialog>
   </>;
 }
 
@@ -122,5 +118,5 @@ export function AddACDialog() {
   const { data, addAC } = useHomecare();
   const [open, setOpen] = useState(false); const [loading, setLoading] = useState(false); const [error, setError] = useState("");
   const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); setError(""); const form = new FormData(event.currentTarget); try { await addAC({ name: String(form.get("name")), roomId: String(form.get("roomId")), maintenanceEveryMonths: Number(form.get("months")) }); setOpen(false); } catch (e) { setError(e instanceof Error ? e.message : "Unable to add AC."); } finally { setLoading(false); } };
-  return <><button className="secondary-button" onClick={() => setOpen(true)}><Plus className="size-4" /> Add AC</button><Dialog open={open} title="Add an AC" eyebrow="New unit" onClose={() => setOpen(false)}><form className="mt-6 space-y-4" onSubmit={submit}><label className="block"><span className="field-label">Unit name</span><input name="name" className="field-input mt-2" required maxLength={80} placeholder="e.g. Living room AC" /></label><label className="block"><span className="field-label">Room</span><select name="roomId" className="field-input mt-2" required>{data.rooms.map((room) => <option value={room.id} key={room.id}>{room.name}</option>)}</select></label><label className="block"><span className="field-label">Maintenance interval</span><select name="months" className="field-input mt-2" defaultValue="3"><option value="1">Every month</option><option value="2">Every 2 months</option><option value="3">Every 3 months</option><option value="6">Every 6 months</option><option value="12">Every year</option></select></label>{error && <p className="text-sm text-rose-300" role="alert">{error}</p>}<button className="primary-button w-full" disabled={loading}>{loading ? <LoaderCircle className="size-4 animate-spin" /> : <Snowflake className="size-4" />}Save AC</button></form></Dialog></>;
+  return <><button className="secondary-button" onClick={() => setOpen(true)}><Plus className="size-4" /> Add AC</button><AppDialog open={open} title="Add an AC" eyebrow="New unit" onClose={() => setOpen(false)}><form className="mt-6 space-y-4" onSubmit={submit}><label className="block"><span className="field-label">Unit name</span><input name="name" className="field-input mt-2" required maxLength={80} placeholder="e.g. Living room AC" /></label><label className="block"><span className="field-label">Room</span><select name="roomId" className="field-input mt-2" required>{data.rooms.map((room) => <option value={room.id} key={room.id}>{room.name}</option>)}</select></label><label className="block"><span className="field-label">Maintenance interval</span><select name="months" className="field-input mt-2" defaultValue="3"><option value="1">Every month</option><option value="2">Every 2 months</option><option value="3">Every 3 months</option><option value="6">Every 6 months</option><option value="12">Every year</option></select></label>{error && <p className="text-sm text-rose-300" role="alert">{error}</p>}<button className="primary-button w-full" disabled={loading}>{loading ? <LoaderCircle className="size-4 animate-spin" /> : <Snowflake className="size-4" />}Save AC</button></form></AppDialog></>;
 }

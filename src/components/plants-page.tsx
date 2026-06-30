@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, FormEvent, useState } from "react";
-import { CalendarClock, Camera, Droplets, ImagePlus, Leaf, LoaderCircle, Scissors, UserRound, X } from "lucide-react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { CalendarClock, Camera, Droplets, ImagePlus, Leaf, LoaderCircle, MoreHorizontal, Scissors, UserRound, X } from "lucide-react";
+import { AppDialog } from "@/components/app-dialog";
 import { AddPlantDialog } from "@/components/add-asset-dialogs";
 import { DeleteEntryButton, EditPlantDialog } from "@/components/manage-entry-dialogs";
 import { useHomecare } from "@/components/providers";
@@ -42,7 +43,7 @@ function PlantPhotoControl({ plantId, plantName, hasPhoto }: { plantId: string; 
         aria-label={`${hasPhoto ? "Change" : "Add"} photo for ${plantName}`}
       >
         {loading ? <LoaderCircle className="size-4 animate-spin" /> : <Camera className="size-4" />}
-        {hasPhoto ? "Change" : "Add photo"}
+        <span className="plant-photo-label">{hasPhoto ? "Change" : "Add photo"}</span>
       </button>
       {open && (
         <div className="absolute right-0 top-0 w-52 rounded-2xl border border-white/10 bg-[#0e1a13] p-2 shadow-2xl" role="group" aria-label={`Photo options for ${plantName}`}>
@@ -65,6 +66,27 @@ function PlantPhotoControl({ plantId, plantName, hasPhoto }: { plantId: string; 
   );
 }
 
+function PlantMoreMenu({ plant, deletePlant }: { plant: Parameters<typeof EditPlantDialog>[0]["plant"]; deletePlant: (id: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: MouseEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    window.addEventListener("mousedown", dismiss);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("mousedown", dismiss); window.removeEventListener("keydown", escape); };
+  }, [open]);
+  return <div ref={rootRef} className="plant-compact-more relative hidden">
+    <button type="button" className="secondary-button w-full px-2" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="menu"><MoreHorizontal className="size-4" />More</button>
+    {open && <div className="plant-more-popover" role="menu" aria-label={`More actions for ${plant.name}`}>
+      <WaterScheduleDialog plantId={plant.id} plantName={plant.name} currentDays={plant.waterEveryDays} />
+      <EditPlantDialog plant={plant} />
+      <DeleteEntryButton itemName={plant.name} itemType="plant" onDelete={() => deletePlant(plant.id)} />
+    </div>}
+  </div>;
+}
+
 function WaterScheduleDialog({ plantId, plantName, currentDays }: { plantId: string; plantName: string; currentDays: number }) {
   const { updatePlantWaterSchedule } = useHomecare();
   const [open, setOpen] = useState(false);
@@ -80,17 +102,15 @@ function WaterScheduleDialog({ plantId, plantName, currentDays }: { plantId: str
   };
   return <>
     <button type="button" className="secondary-button mt-3 w-full" onClick={() => { setError(""); setOpen(true); }}><CalendarClock className="size-4" />Change water schedule</button>
-    {open && <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/65 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !loading && setOpen(false)}>
-      <section className="w-full rounded-t-[28px] border border-white/10 bg-[#0d1b13] p-5 shadow-2xl sm:max-w-md sm:rounded-[28px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby={`water-schedule-${plantId}`}>
-        <div className="flex items-start justify-between gap-4"><div><p className="eyebrow">Plant care</p><h2 id={`water-schedule-${plantId}`} className="mt-2 text-2xl font-bold text-white">Water {plantName}</h2><p className="mt-2 text-sm text-slate-400">Choose how often this plant should be watered.</p></div><button type="button" className="icon-button shrink-0" onClick={() => setOpen(false)} disabled={loading} aria-label="Close water schedule"><X className="size-5" /></button></div>
+    <AppDialog open={open} title={`Water ${plantName}`} eyebrow="Plant care" onClose={() => { if (!loading) setOpen(false); }} className="sm:max-w-md">
+        <p className="mt-2 text-sm text-slate-400">Choose how often this plant should be watered.</p>
         <form className="mt-6" onSubmit={submit}>
           <label className="block"><span className="field-label">Water every</span><span className="relative mt-2 block"><input className="field-input pr-16" name="everyDays" type="number" inputMode="numeric" min="1" max="365" defaultValue={currentDays} required /><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">days</span></span></label>
           <div className="mt-3 flex flex-wrap gap-2" aria-label="Common watering schedules">{[3, 5, 7, 10, 14, 21].map((days) => <button key={days} type="button" className="chip min-h-9 px-3 text-xs font-bold text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-200" onClick={(event) => { const input = event.currentTarget.form?.elements.namedItem("everyDays") as HTMLInputElement | null; if (input) input.value = String(days); }}>{days} days</button>)}</div>
           {error && <p className="mt-4 rounded-xl border border-rose-300/20 bg-rose-300/10 p-3 text-sm text-rose-200" role="alert">{error}</p>}
           <button className="primary-button mt-6 w-full" disabled={loading}>{loading ? <LoaderCircle className="size-4 animate-spin" /> : <CalendarClock className="size-4" />}{loading ? "Saving schedule…" : "Save schedule"}</button>
         </form>
-      </section>
-    </div>}
+    </AppDialog>
   </>;
 }
 
@@ -111,24 +131,26 @@ export function PlantsPage() {
           const trimDue = plantTrimDue(plant);
           const waterStatus = dateStatus(waterDue);
           return (
-            <article id={`plant-${plant.id}`} key={plant.id} className="panel scroll-mt-32 overflow-hidden">
-              <div className={`relative flex aspect-square items-end overflow-hidden p-5 ${index % 3 === 0 ? "bg-[radial-gradient(circle_at_70%_30%,#2c785044,transparent_48%),#102a1b]" : index % 3 === 1 ? "bg-[radial-gradient(circle_at_25%_20%,#7ba65735,transparent_50%),#17271c]" : "bg-[radial-gradient(circle_at_70%_25%,#66cdaa2b,transparent_52%),#0e2419]"}`}>
-                {plant.image ? <><Image src={plant.image} alt={`${plant.name} plant`} fill unoptimized className="object-cover" sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 33vw" /><div className="absolute inset-0 bg-gradient-to-t from-[#07110c]/90 via-[#07110c]/20 to-[#07110c]/15" /></> : <Leaf className="absolute right-5 top-5 size-24 rotate-12 text-emerald-300/15" strokeWidth={1.2} aria-hidden="true" />}
-                <PlantPhotoControl plantId={plant.id} plantName={plant.name} hasPhoto={Boolean(plant.image)} />
-                <div className="relative z-10 pr-20"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/90">{plant.species}</p><h2 className="mt-1 text-2xl font-bold text-white">{plant.name}</h2></div>
+            <article id={`plant-${plant.id}`} key={plant.id} className="plant-card panel scroll-mt-32 overflow-hidden">
+              <div className="plant-card-top">
+                <div className={`plant-card-photo relative aspect-square overflow-hidden ${index % 3 === 0 ? "bg-[radial-gradient(circle_at_70%_30%,#2c785044,transparent_48%),#102a1b]" : index % 3 === 1 ? "bg-[radial-gradient(circle_at_25%_20%,#7ba65735,transparent_50%),#17271c]" : "bg-[radial-gradient(circle_at_70%_25%,#66cdaa2b,transparent_52%),#0e2419]"}`}>
+                  {plant.image ? <><Image src={plant.image} alt={`${plant.name} plant`} fill unoptimized className="object-cover" sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 33vw" /><div className="absolute inset-0 bg-gradient-to-t from-[#07110c]/90 via-[#07110c]/20 to-[#07110c]/15" /></> : <Leaf className="absolute right-5 top-5 size-24 rotate-12 text-emerald-300/15" strokeWidth={1.2} aria-hidden="true" />}
+                  <PlantPhotoControl plantId={plant.id} plantName={plant.name} hasPhoto={Boolean(plant.image)} />
+                </div>
+                <div className="plant-card-heading"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/90">{plant.species}</p><h2 className="mt-1 text-2xl font-bold text-white">{plant.name}</h2><div className="plant-card-chips mt-3 flex flex-wrap gap-2 text-xs text-slate-400"><span className="chip"><Leaf className="size-3.5" />{room?.name}</span><span className="chip"><UserRound className="size-3.5" />{person?.name}</span></div></div>
               </div>
-              <div className="p-5">
-                <div className="flex flex-wrap gap-2 text-xs text-slate-400"><span className="chip"><Leaf className="size-3.5" />{room?.name}</span><span className="chip"><UserRound className="size-3.5" />{person?.name}</span></div>
-                <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="plant-card-body p-5">
+                <div className="plant-card-metrics grid grid-cols-2 gap-3">
                   <div className="metric-box"><div className="flex items-center justify-between"><Droplets className="size-4 text-emerald-300" /><StatusPill status={waterStatus} /></div><p className="mt-3 text-xs text-slate-400">Last watered</p><p className="mt-1 font-bold text-white">{formatRelativeDay(plant.lastWateredAt)}</p><p className="mt-1 text-[11px] text-slate-500">{formatDate(plant.lastWateredAt)}</p></div>
                   <div className="metric-box"><Scissors className="size-4 text-lime-300" /><p className="mt-3 text-xs text-slate-400">Last trimmed</p><p className="mt-1 font-bold text-white">{formatRelativeDay(plant.lastTrimmedAt)}</p><p className="mt-1 text-[11px] text-slate-500">Next {formatRelativeDay(trimDue).toLowerCase()}</p></div>
                 </div>
-                <WaterScheduleDialog plantId={plant.id} plantName={plant.name} currentDays={plant.waterEveryDays} />
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="plant-desktop-secondary-actions"><WaterScheduleDialog plantId={plant.id} plantName={plant.name} currentDays={plant.waterEveryDays} /></div>
+                <div className="plant-primary-actions mt-4 grid grid-cols-2 gap-2">
                   <button className="primary-button min-w-0 px-3" onClick={() => recordAction({ type: "water", entityId: plant.id })}><Droplets className="size-4" />Watered</button>
                   <button className="secondary-button min-w-0 px-3" onClick={() => recordAction({ type: "trim", entityId: plant.id })}><Scissors className="size-4" />Trimmed</button>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
+                <PlantMoreMenu plant={plant} deletePlant={deletePlant} />
+                <div className="plant-desktop-secondary-actions mt-2 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
                   <EditPlantDialog plant={plant} />
                   <DeleteEntryButton itemName={plant.name} itemType="plant" onDelete={() => deletePlant(plant.id)} />
                 </div>

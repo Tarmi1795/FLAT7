@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("dashboard and primary navigation are usable", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /home is mostly on track/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /flat7 at a glance/i })).toBeVisible();
   await page.getByRole("link", { name: "Plants", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Plants" })).toBeVisible();
   await page.getByRole("button", { name: /add plant/i }).click();
@@ -99,4 +99,44 @@ test("page has no horizontal overflow", async ({ page }) => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow, `${route} should fit the viewport`).toBe(false);
   }
+});
+
+test("tablet keyboard shortcuts and compact layout stay within one view", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 600 });
+  await page.goto("/");
+
+  for (const [key, route] of [["1", "/"], ["2", "/plants"], ["3", "/ac"], ["4", "/bills"], ["5", "/activity"], ["6", "/more"]]) {
+    await page.keyboard.press(`Alt+${key}`);
+    await expect(page).toHaveURL(new RegExp(`${route === "/" ? "/$" : `${route}$`}`));
+  }
+  await page.keyboard.press("Alt+2");
+  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+
+  const firstCard = page.locator(".plant-card").first();
+  const cardBox = await firstCard.boundingBox();
+  expect(cardBox?.height).toBeLessThanOrEqual(400);
+  await expect(firstCard.getByRole("button", { name: "Watered" })).toBeVisible();
+  await expect(firstCard.getByRole("button", { name: "Trimmed" })).toBeVisible();
+
+  await page.keyboard.press("Alt+n");
+  await expect(page.getByRole("dialog", { name: "Quick entry" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.keyboard.press("Shift+/");
+  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+});
+
+test("top-aligned forms remain below the sticky tablet header", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 600 });
+  await page.goto("/plants");
+  await page.getByRole("button", { name: /add plant/i }).click();
+
+  const headerBox = await page.locator(".tablet-header-shell").boundingBox();
+  const dialogBox = await page.getByRole("dialog", { name: "Add a plant" }).boundingBox();
+  expect(dialogBox?.y).toBeGreaterThanOrEqual(headerBox?.height || 0);
+  expect((dialogBox?.y || 0) + (dialogBox?.height || 0)).toBeLessThanOrEqual(600);
+
+  await page.getByRole("dialog").getByLabel("Plant name").focus();
+  await page.keyboard.press("Alt+1");
+  await expect(page).toHaveURL(/\/plants$/);
 });

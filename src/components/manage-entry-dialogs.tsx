@@ -1,27 +1,12 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useState } from "react";
-import { LoaderCircle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import { AppDialog } from "@/components/app-dialog";
 import { useHomecare } from "@/components/providers";
 import type { ACUnit, ActivityItem, BillOccurrence, Plant, Profile, Room } from "@/types/homecare";
 
-function Modal({ open, title, eyebrow, onClose, children }: { open: boolean; title: string; eyebrow: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    if (!open) return;
-    const escape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    window.addEventListener("keydown", escape);
-    return () => window.removeEventListener("keydown", escape);
-  }, [onClose, open]);
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/65 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="max-h-[92dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/10 bg-[#0d1b13] p-5 shadow-2xl sm:max-w-lg sm:rounded-[28px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="entry-dialog-title">
-        <div className="flex items-start justify-between gap-4"><div><p className="eyebrow">{eyebrow}</p><h2 id="entry-dialog-title" className="mt-2 text-2xl font-bold text-white">{title}</h2></div><button type="button" className="icon-button shrink-0" onClick={onClose} aria-label={`Close ${title}`}><X className="size-5" /></button></div>
-        {children}
-      </section>
-    </div>
-  );
-}
+const Modal = AppDialog;
 
 function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
   return <button className="primary-button w-full" disabled={loading}>{loading && <LoaderCircle className="size-4 animate-spin" />}{label}</button>;

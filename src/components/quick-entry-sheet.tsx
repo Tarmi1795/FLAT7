@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, CreditCard, Leaf, Plus, Scissors, Snowflake, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, CreditCard, Leaf, Plus, Scissors, Snowflake } from "lucide-react";
+import { AppDialog } from "@/components/app-dialog";
 import { useHomecare } from "@/components/providers";
 import type { ActivityType } from "@/types/homecare";
 
@@ -12,9 +13,8 @@ const options: Array<{ type: ActivityType; label: string; icon: typeof Leaf; col
   { type: "payment", label: "Pay bill", icon: CreditCard, color: "text-amber-200 bg-amber-200/10" },
 ];
 
-export function QuickEntrySheet() {
+export function QuickEntrySheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { data, recordAction, undoLast } = useHomecare();
-  const [open, setOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<ActivityType>("water");
   const [entityId, setEntityId] = useState(data.plants[0]?.id || "");
   const [success, setSuccess] = useState<string | null>(null);
@@ -26,37 +26,21 @@ export function QuickEntrySheet() {
   }, [data, selectedType]);
 
   const effectiveEntityId = entities.some((entity) => entity.id === entityId) ? entityId : entities[0]?.id || "";
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [open]);
-
   const submit = () => {
     if (!effectiveEntityId) return;
     const activity = recordAction({ type: selectedType, entityId: effectiveEntityId });
-    setOpen(false);
+    onOpenChange(false);
     setSuccess(activity.title);
     window.setTimeout(() => setSuccess(null), 10000);
   };
 
   return (
     <>
-      <button className="quick-fab" onClick={() => setOpen(true)} aria-label="Create quick entry">
+      <button className="quick-fab" onClick={() => onOpenChange(true)} aria-label="Create quick entry">
         <Plus className="size-5" aria-hidden="true" />
         <span>Quick entry</span>
       </button>
-      {open && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
-          <section className="w-full rounded-t-[28px] border border-white/10 bg-[#0d1b13] p-5 shadow-2xl sm:max-w-lg sm:rounded-[28px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="quick-entry-title">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="eyebrow">Add in seconds</p>
-                <h2 id="quick-entry-title" className="mt-2 text-2xl font-bold text-white">Quick entry</h2>
-              </div>
-              <button className="icon-button" onClick={() => setOpen(false)} aria-label="Close quick entry"><X className="size-5" /></button>
-            </div>
+      <AppDialog open={open} title="Quick entry" eyebrow="Add in seconds" onClose={() => onOpenChange(false)}>
             <div className="mt-6 grid grid-cols-2 gap-3">
               {options.map((option) => {
                 const Icon = option.icon;
@@ -78,9 +62,7 @@ export function QuickEntrySheet() {
             <button className="primary-button mt-5 w-full" onClick={submit} disabled={!effectiveEntityId}>
               <Check className="size-5" aria-hidden="true" /> Record now
             </button>
-          </section>
-        </div>
-      )}
+      </AppDialog>
       {success && (
         <div className="fixed bottom-24 left-4 right-4 z-[90] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-emerald-300/20 bg-[#12241a] p-3 shadow-2xl lg:bottom-6" role="status" aria-live="polite">
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-emerald-300 text-[#07110c]"><Check className="size-5" /></span>

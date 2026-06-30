@@ -36,7 +36,7 @@ export function Dashboard() {
   const dayLabels = Array.from({ length: 7 }, (_, index) => { const day = new Date(); day.setDate(day.getDate() - (6 - index)); return new Intl.DateTimeFormat("en-QA", { weekday: "short" }).format(day); });
 
   return (
-    <section className="relative min-h-[calc(100dvh-3rem)] overflow-hidden rounded-[28px] border border-white/10 bg-[#07110c] shadow-[0_32px_100px_rgba(0,0,0,.45)] sm:rounded-[34px]">
+    <section className="dashboard-shell relative min-h-[calc(100dvh-3rem)] overflow-clip rounded-[28px] border border-white/10 bg-[#07110c] shadow-[0_32px_100px_rgba(0,0,0,.45)] sm:rounded-[34px]">
       <Image src="/dashboard-home.webp" alt="" fill priority sizes="100vw" className="object-cover object-[35%_center] sm:object-center" />
       <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(4,12,10,.90)_0%,rgba(6,20,21,.42)_42%,rgba(3,10,13,.77)_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,14,13,.62)_0%,transparent_30%,rgba(3,9,8,.5)_100%)]" />
@@ -45,14 +45,13 @@ export function Dashboard() {
       </nav>
 
       <div className="relative z-10 flex min-h-[calc(100dvh-3rem)] flex-col p-3 sm:p-5 lg:p-6">
-        <TopBar />
+        <div className="dashboard-sticky-header"><TopBar /></div>
 
-        <div className="mt-6 grid flex-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.14fr_.72fr_.72fr] xl:grid-rows-[minmax(0,1fr)_190px]">
-          <section className="flex min-h-[430px] flex-col justify-between md:col-span-2 xl:col-span-1 xl:row-span-2">
-            <div className="max-w-2xl px-2 pt-3 text-shadow-lg sm:px-3 sm:pt-8 xl:pt-10">
+        <div className="dashboard-grid mt-6 grid flex-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.14fr_.72fr_.72fr] xl:grid-rows-[minmax(0,1fr)_190px]">
+          <section className="dashboard-hero flex min-h-[430px] flex-col justify-between md:col-span-2 xl:col-span-1 xl:row-span-2">
+            <div className="dashboard-hero-message max-w-2xl px-2 pt-3 text-shadow-lg sm:px-3 sm:pt-8 xl:pt-10">
               <p className="text-sm font-semibold text-emerald-200">{greeting}, {profile.name}</p>
-              <h1 className="mt-3 text-4xl font-semibold leading-[1.02] tracking-[-.045em] text-white sm:text-5xl xl:text-[4rem]">Your home is mostly on track.</h1>
-              <p className="mt-4 max-w-lg text-base leading-7 text-slate-200/90">Everything important in FLAT7, gathered into one calm view.</p>
+              <h1 className="mt-2 text-3xl font-semibold leading-[1.02] tracking-[-.045em] text-white sm:text-4xl xl:text-[3rem]">FLAT7 at a glance.</h1>
             </div>
 
             <div className={`${glassCard} max-w-xl p-4 sm:p-5`}>
@@ -65,7 +64,7 @@ export function Dashboard() {
             </div>
           </section>
 
-          <div className="grid content-start gap-4">
+          <div className="dashboard-care-column grid content-start gap-4">
             <section className={`${glassCard} p-5`} aria-labelledby="care-score-title">
               <div className="flex items-start justify-between gap-3"><div><p id="care-score-title" className="text-sm font-semibold text-slate-200">Care completion</p><p className="mt-3 text-3xl font-light text-white">{careScore}% <span className="text-sm font-medium text-slate-300">{overdueCount ? "Needs attention" : "On track"}</span></p></div><CheckCircle2 className="size-5 text-emerald-300" /></div>
               <div className="mt-4 h-9 overflow-hidden rounded-xl border border-white/10 bg-black/25 p-1"><div className="h-full rounded-lg bg-[linear-gradient(90deg,#bef264,#34d399)] shadow-[0_0_24px_rgba(52,211,153,.55)] transition-[width] duration-500" style={{ width: `${careScore}%` }} /></div>
@@ -85,7 +84,7 @@ export function Dashboard() {
             </Link>
           </div>
 
-          <div className="grid content-start gap-4">
+          <div className="dashboard-bills-column grid content-start gap-4">
             <section className={`${glassCard} p-5`}>
               <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-200">Upcoming bills</p><p className="mt-3 text-4xl font-light tabular-nums text-white">{formatQar(outstanding)}</p><p className="mt-1 text-xs text-slate-300">Total outstanding</p></div><span className="grid size-11 place-items-center rounded-2xl bg-amber-200/15 text-amber-100"><WalletCards className="size-5" /></span></div>
               <div className="mt-5 space-y-2">{openBills.slice(0, 2).map((bill) => <Link href="/bills" key={bill.id} className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.05] px-3 transition hover:bg-white/[0.09]"><CreditCard className="size-4 text-amber-200" /><div className="min-w-0 flex-1"><p className="font-semibold text-white">{bill.name}</p><p className="text-[11px] text-slate-400">{formatRelativeDay(bill.dueAt)}</p></div><StatusPill status={billStatus(bill)} /></Link>)}</div>
@@ -98,7 +97,7 @@ export function Dashboard() {
             </section>
           </div>
 
-          <section className={`${glassCard} min-h-44 p-5 md:col-span-2 xl:col-start-2 xl:col-span-2`} aria-labelledby="activity-chart-title">
+          <section className={`${glassCard} dashboard-activity min-h-44 p-5 md:col-span-2 xl:col-start-2 xl:col-span-2`} aria-labelledby="activity-chart-title">
             <div className="flex items-start justify-between gap-4"><div><p id="activity-chart-title" className="text-sm font-semibold text-slate-200">Household care this week</p><p className="mt-2 text-2xl font-light text-white">{activityCounts.reduce((sum, count) => sum + count, 0)} <span className="text-sm font-medium text-slate-300">completed entries</span></p></div><Link href="/activity" className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition hover:bg-white/[0.12]" aria-label="Open activity history"><ArrowUpRight className="size-4" /></Link></div>
             <div className="mt-3 h-16" aria-hidden="true"><svg viewBox="0 0 600 100" preserveAspectRatio="none" className="h-full w-full overflow-visible"><defs><linearGradient id="careArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#34d399" stopOpacity=".42"/><stop offset="1" stopColor="#34d399" stopOpacity="0"/></linearGradient></defs><polygon points={`0,100 ${activityPoints} 600,100`} fill="url(#careArea)"/><polyline points={activityPoints} fill="none" stroke="#a3e635" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/></svg></div>
             <div className="mt-1 grid grid-cols-7 text-center text-[10px] font-medium text-slate-400">{dayLabels.map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div>
