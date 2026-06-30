@@ -2,15 +2,17 @@
 
 import { CalendarDays, Check, Snowflake, UserRound, Wind } from "lucide-react";
 import { AddACDialog } from "@/components/add-asset-dialogs";
+import { DeleteEntryButton, EditACDialog } from "@/components/manage-entry-dialogs";
 import { useHomecare } from "@/components/providers";
 import { StatusPill } from "@/components/status-pill";
 import { acMaintenanceDue, dateStatus, formatDate, formatRelativeDay } from "@/lib/homecare";
 
 export function ACPage() {
-  const { data, recordAction } = useHomecare();
+  const { data, recordAction, deleteAC } = useHomecare();
   return (
     <div>
       <header className="page-header"><div><p className="eyebrow">Cool & comfortable</p><h1 className="page-title">AC maintenance</h1><p className="page-description">A simple record for every unit in FLAT7.</p></div><AddACDialog /></header>
+      {data.acUnits.length === 0 && <section className="panel mt-7 grid min-h-52 place-items-center p-6 text-center"><div><Snowflake className="mx-auto size-8 text-sky-300" /><h2 className="mt-3 font-bold text-white">No AC units yet</h2><p className="mt-1 text-sm text-slate-400">Add a unit to begin maintenance tracking.</p></div></section>}
       <section className="mt-7 grid gap-4 lg:grid-cols-2">
         {data.acUnits.map((unit) => {
           const room = data.rooms.find((item) => item.id === unit.roomId);
@@ -24,6 +26,7 @@ export function ACPage() {
               <div className="mt-2 flex flex-wrap gap-2"><span className="chip"><Wind className="size-3.5" />{room?.name}</span><span className="chip"><UserRound className="size-3.5" />{person?.name}</span></div>
               <div className="mt-6 grid grid-cols-2 gap-3"><div className="metric-box"><p className="text-xs text-slate-400">Last maintained</p><p className="mt-2 text-lg font-bold text-white">{formatRelativeDay(unit.lastMaintainedAt)}</p><p className="mt-1 text-xs text-slate-500">{formatDate(unit.lastMaintainedAt)}</p></div><div className="metric-box"><p className="text-xs text-slate-400">Next service</p><p className="mt-2 text-lg font-bold text-white">{formatRelativeDay(due)}</p><p className="mt-1 text-xs text-slate-500">Every {unit.maintenanceEveryMonths} months</p></div></div>
               <button className="primary-button mt-4 w-full" onClick={() => recordAction({ type: "maintenance", entityId: unit.id })}><Check className="size-4" />Mark maintained</button>
+              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3"><EditACDialog unit={unit} /><DeleteEntryButton itemName={unit.name} itemType="AC unit" onDelete={() => deleteAC(unit.id)} /></div>
             </article>
           );
         })}

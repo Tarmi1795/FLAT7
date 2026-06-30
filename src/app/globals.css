@@ -58,12 +58,14 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .hero-stat strong { display: block; margin-top: .35rem; font-size: 1.45rem; line-height: 1; }
 .task-card { display: block; min-height: 172px; border: 1px solid rgba(255,255,255,.075); border-radius: 1.25rem; background: #0e1a13; padding: 1rem; transition: transform .2s ease, border-color .2s ease, background-color .2s ease; }
 .task-card:hover { transform: translateY(-2px); border-color: rgba(52,211,153,.24); background: #112119; }
-.primary-button, .secondary-button { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: .5rem; border-radius: .875rem; padding: 0 1rem; font-size: .82rem; font-weight: 800; transition: transform .18s ease, border-color .18s ease, background-color .18s ease; }
+.primary-button, .secondary-button, .danger-button { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: .5rem; border-radius: .875rem; padding: 0 1rem; font-size: .82rem; font-weight: 800; transition: transform .18s ease, border-color .18s ease, background-color .18s ease; }
 .primary-button { border: 1px solid #34d399; background: #34d399; color: #07110c; }
 .primary-button:hover { background: #6ee7b7; border-color: #6ee7b7; }
-.primary-button:active, .secondary-button:active { transform: scale(.98); }
+.primary-button:active, .secondary-button:active, .danger-button:active { transform: scale(.98); }
 .secondary-button { border: 1px solid rgba(255,255,255,.11); background: rgba(255,255,255,.035); color: #f0fdf4; }
 .secondary-button:hover { border-color: rgba(52,211,153,.32); background: rgba(52,211,153,.07); }
+.danger-button { border: 1px solid rgba(251,113,133,.28); background: rgba(251,113,133,.08); color: #fda4af; }
+.danger-button:hover { border-color: rgba(251,113,133,.5); background: rgba(251,113,133,.14); color: #fecdd3; }
 .icon-button { display: grid; min-width: 44px; min-height: 44px; place-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: rgba(255,255,255,.03); color: #cbd5e1; }
 .entry-option { display: flex; min-height: 66px; align-items: center; gap: .75rem; border: 1px solid rgba(255,255,255,.075); border-radius: 1rem; background: rgba(255,255,255,.025); padding: .65rem; color: #cbd5e1; text-align: left; font-size: .8rem; font-weight: 700; transition: border-color .18s ease, background-color .18s ease; }
 .entry-option-selected { border-color: rgba(52,211,153,.48); background: rgba(52,211,153,.07); color: white; box-shadow: inset 0 0 0 1px rgba(52,211,153,.08); }

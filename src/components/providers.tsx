@@ -5,14 +5,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { demoData } from "@/lib/demo-data";
 import { enqueueQuickEntry, flushQuickEntries } from "@/lib/offline-queue";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { ActivityItem, ActivityType, HouseholdData } from "@/types/homecare";
+import type { ACInput, ActivityItem, ActivityType, BillInput, HouseholdData, PlantInput, ProfileInput, RoomInput } from "@/types/homecare";
 
 type ProfileRow = { id: string; name: string; initials: string; color: string };
 type RoomRow = { id: string; name: string; primary_profile_id: string };
 type PlantRow = { id: string; name: string; species: string | null; room_id: string; assigned_profile_id: string | null; water_every_days: number; trim_every_days: number; last_watered_at: string | null; last_trimmed_at: string | null; created_at: string; photo_path: string | null };
 type ACRow = { id: string; name: string; room_id: string; assigned_profile_id: string | null; maintenance_every_months: number; last_maintained_at: string | null; created_at: string };
-type BillRow = { id: string; amount: number | string; due_on: string; paid_at: string | null; paid_by_profile_id: string | null; bills: { kind: "Internet" | "Rent"; responsible_profile_id: string | null } | Array<{ kind: "Internet" | "Rent"; responsible_profile_id: string | null }> };
+type BillRow = { id: string; bill_id: string; amount: number | string; due_on: string; paid_at: string | null; paid_by_profile_id: string | null; bills: { kind: "Internet" | "Rent"; responsible_profile_id: string | null } | Array<{ kind: "Internet" | "Rent"; responsible_profile_id: string | null }> };
 type ActivityRow = { id: string; type: ActivityType; occurred_at: string; profile_id: string; entity_id: string; note: string | null };
+
+const makeInitials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "?";
 
 type RecordActionInput = {
   type: ActivityType;
@@ -27,8 +29,23 @@ type HomecareContextValue = {
   setActiveProfileId: (id: string) => void;
   recordAction: (input: RecordActionInput) => ActivityItem;
   undoLast: () => void;
-  addPlant: (input: { name: string; species: string; roomId: string; waterEveryDays: number; trimEveryDays: number; photo?: File }) => Promise<void>;
-  addAC: (input: { name: string; roomId: string; maintenanceEveryMonths: number }) => Promise<void>;
+  addPlant: (input: PlantInput) => Promise<void>;
+  updatePlant: (id: string, input: PlantInput) => Promise<void>;
+  deletePlant: (id: string) => Promise<void>;
+  addAC: (input: ACInput) => Promise<void>;
+  updateAC: (id: string, input: ACInput) => Promise<void>;
+  deleteAC: (id: string) => Promise<void>;
+  addBill: (input: BillInput) => Promise<void>;
+  updateBill: (id: string, input: BillInput) => Promise<void>;
+  deleteBill: (id: string) => Promise<void>;
+  addRoom: (input: RoomInput) => Promise<void>;
+  updateRoom: (id: string, input: RoomInput) => Promise<void>;
+  deleteRoom: (id: string) => Promise<void>;
+  addProfile: (input: ProfileInput) => Promise<void>;
+  updateProfile: (id: string, input: ProfileInput) => Promise<void>;
+  deleteProfile: (id: string) => Promise<void>;
+  updateActivity: (id: string, input: { occurredAt: string; note?: string; profileId: string }) => Promise<void>;
+  deleteActivity: (id: string) => Promise<void>;
   updatePlantPhoto: (plantId: string, photo: File) => Promise<void>;
 };
 
@@ -66,8 +83,8 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     }));
     const plants = plantRows.map((row, index) => ({ id: row.id, name: row.name, species: row.species || "House plant", roomId: row.room_id, assignedProfileId: row.assigned_profile_id || rooms.find((room) => room.id === row.room_id)?.primaryProfileId || profiles[0]?.id, waterEveryDays: row.water_every_days, trimEveryDays: row.trim_every_days, lastWateredAt: row.last_watered_at || row.created_at || fallbackDate, lastTrimmedAt: row.last_trimmed_at || row.created_at || fallbackDate, image: signedPlantImages[index], photoPath: row.photo_path || undefined }));
     const acUnits = ((acResult.data || []) as ACRow[]).map((row) => ({ id: row.id, name: row.name, roomId: row.room_id, assignedProfileId: row.assigned_profile_id || rooms.find((room) => room.id === row.room_id)?.primaryProfileId || profiles[0]?.id, maintenanceEveryMonths: row.maintenance_every_months, lastMaintainedAt: row.last_maintained_at || row.created_at || fallbackDate }));
-    const bills = ((billsResult.data || []) as BillRow[]).map((row) => { const bill = Array.isArray(row.bills) ? row.bills[0] : row.bills; return { id: row.id, name: bill.kind, amount: Number(row.amount), dueAt: row.due_on, paidAt: row.paid_at || undefined, paidByProfileId: row.paid_by_profile_id || undefined, responsibleProfileId: bill.responsible_profile_id || undefined }; });
-    const activity = ((activityResult.data || []) as ActivityRow[]).map((row) => { const entity = row.type === "maintenance" ? acUnits.find((item) => item.id === row.entity_id) : row.type === "payment" ? bills.find((item) => item.id === row.entity_id) : plants.find((item) => item.id === row.entity_id); const verb = row.type === "water" ? "watered" : row.type === "trim" ? "trimmed" : row.type === "maintenance" ? "maintained" : "paid"; return { id: row.id, type: row.type, title: `${entity?.name || "Household item"} ${verb}`, detail: row.note || "Completed", occurredAt: row.occurred_at, profileId: row.profile_id }; });
+    const bills = ((billsResult.data || []) as BillRow[]).map((row) => { const bill = Array.isArray(row.bills) ? row.bills[0] : row.bills; return { id: row.id, billId: row.bill_id, name: bill.kind, amount: Number(row.amount), dueAt: row.due_on, paidAt: row.paid_at || undefined, paidByProfileId: row.paid_by_profile_id || undefined, responsibleProfileId: bill.responsible_profile_id || undefined }; });
+    const activity = ((activityResult.data || []) as ActivityRow[]).map((row) => { const entity = row.type === "maintenance" ? acUnits.find((item) => item.id === row.entity_id) : row.type === "payment" ? bills.find((item) => item.id === row.entity_id) : plants.find((item) => item.id === row.entity_id); const verb = row.type === "water" ? "watered" : row.type === "trim" ? "trimmed" : row.type === "maintenance" ? "maintained" : "paid"; return { id: row.id, entityId: row.entity_id, type: row.type, title: `${entity?.name || "Household item"} ${verb}`, detail: row.note || "Completed", occurredAt: row.occurred_at, profileId: row.profile_id }; });
     setData({ profiles, rooms, plants, acUnits, bills, activity });
     if (membership.selected_profile_id) setProfile(membership.selected_profile_id as string);
   }, []);
@@ -123,6 +140,7 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
         }
         const activity: ActivityItem = {
           id,
+          entityId,
           type,
           title,
           detail,
@@ -149,6 +167,15 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     }
   }, [previousData]);
 
+  const getHouseholdId = useCallback(async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return null;
+    const user = (await supabase.auth.getUser()).data.user;
+    const membership = user ? (await supabase.from("device_memberships").select("household_id").eq("auth_user_id", user.id).single()).data : null;
+    if (!membership) throw new Error("Household membership was not found.");
+    return membership.household_id as string;
+  }, []);
+
   const uploadPlantPhoto = useCallback(async (plantId: string, householdId: string, photo: File) => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) throw new Error("Supabase is not configured.");
@@ -164,7 +191,7 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     return path;
   }, []);
 
-  const addPlant = useCallback(async (input: { name: string; species: string; roomId: string; waterEveryDays: number; trimEveryDays: number; photo?: File }) => {
+  const addPlant = useCallback(async (input: PlantInput) => {
     const room = data.rooms.find((item) => item.id === input.roomId);
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
@@ -184,6 +211,18 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     setData((current) => ({ ...current, plants: [...current.plants, { id: crypto.randomUUID(), ...plantInput, image: photo ? URL.createObjectURL(photo) : undefined, assignedProfileId: room?.primaryProfileId || current.profiles[0].id, lastWateredAt: new Date().toISOString(), lastTrimmedAt: new Date().toISOString() }] }));
   }, [data.rooms, loadRemote, uploadPlantPhoto]);
 
+  const deletePlant = useCallback(async (id: string) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("plants").update({ archived_at: new Date().toISOString() }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, plants: current.plants.filter((plant) => plant.id !== id) }));
+  }, [getHouseholdId, loadRemote]);
+
   const updatePlantPhoto = useCallback(async (plantId: string, photo: File) => {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
@@ -199,7 +238,21 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     setData((current) => ({ ...current, plants: current.plants.map((plant) => plant.id === plantId ? { ...plant, image: URL.createObjectURL(photo) } : plant) }));
   }, [data.plants, loadRemote, uploadPlantPhoto]);
 
-  const addAC = useCallback(async (input: { name: string; roomId: string; maintenanceEveryMonths: number }) => {
+  const updatePlant = useCallback(async (id: string, input: PlantInput) => {
+    const room = data.rooms.find((item) => item.id === input.roomId);
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("plants").update({ name: input.name, species: input.species, room_id: input.roomId, assigned_profile_id: room?.primaryProfileId, water_every_days: input.waterEveryDays, trim_every_days: input.trimEveryDays }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      if (input.photo) await updatePlantPhoto(id, input.photo);
+      else await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, plants: current.plants.map((plant) => plant.id === id ? { ...plant, ...input, assignedProfileId: room?.primaryProfileId || plant.assignedProfileId, image: input.photo ? URL.createObjectURL(input.photo) : plant.image } : plant) }));
+  }, [data.rooms, getHouseholdId, loadRemote, updatePlantPhoto]);
+
+  const addAC = useCallback(async (input: ACInput) => {
     const room = data.rooms.find((item) => item.id === input.roomId);
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
@@ -214,9 +267,208 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     setData((current) => ({ ...current, acUnits: [...current.acUnits, { id: crypto.randomUUID(), ...input, assignedProfileId: room?.primaryProfileId || current.profiles[0].id, lastMaintainedAt: new Date().toISOString() }] }));
   }, [data.rooms, loadRemote]);
 
+  const updateAC = useCallback(async (id: string, input: ACInput) => {
+    const room = data.rooms.find((item) => item.id === input.roomId);
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("ac_units").update({ name: input.name, room_id: input.roomId, assigned_profile_id: room?.primaryProfileId, maintenance_every_months: input.maintenanceEveryMonths }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, acUnits: current.acUnits.map((unit) => unit.id === id ? { ...unit, ...input, assignedProfileId: room?.primaryProfileId || unit.assignedProfileId } : unit) }));
+  }, [data.rooms, getHouseholdId, loadRemote]);
+
+  const deleteAC = useCallback(async (id: string) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("ac_units").update({ archived_at: new Date().toISOString() }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, acUnits: current.acUnits.filter((unit) => unit.id !== id) }));
+  }, [getHouseholdId, loadRemote]);
+
+  const addBill = useCallback(async (input: BillInput) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const dueDay = Number(input.dueAt.slice(8, 10));
+      const { data: existing } = await supabase.from("bills").select("id").eq("household_id", householdId).eq("kind", input.name).maybeSingle();
+      let billId = existing?.id as string | undefined;
+      if (billId) {
+        const { error } = await supabase.from("bills").update({ responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: dueDay, is_active: true }).eq("id", billId).eq("household_id", householdId);
+        if (error) throw error;
+      } else {
+        const { data: created, error } = await supabase.from("bills").insert({ household_id: householdId, kind: input.name, responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: dueDay }).select("id").single();
+        if (error) throw error;
+        billId = created.id;
+      }
+      const { error } = await supabase.from("bill_occurrences").insert({ household_id: householdId, bill_id: billId, billing_month: `${input.dueAt.slice(0, 7)}-01`, due_on: input.dueAt, amount: input.amount });
+      if (error?.code === "23505") throw new Error(`${input.name} already has a bill for this month.`);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    if (data.bills.some((bill) => bill.name === input.name && bill.dueAt.slice(0, 7) === input.dueAt.slice(0, 7))) throw new Error(`${input.name} already has a bill for this month.`);
+    setData((current) => ({ ...current, bills: [...current.bills, { id: crypto.randomUUID(), ...input }] }));
+  }, [data.bills, getHouseholdId, loadRemote]);
+
+  const updateBill = useCallback(async (id: string, input: BillInput) => {
+    const bill = data.bills.find((item) => item.id === id);
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("bill_occurrences").update({ amount: input.amount, due_on: input.dueAt, billing_month: `${input.dueAt.slice(0, 7)}-01` }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      if (bill?.billId) {
+        const { error: templateError } = await supabase.from("bills").update({ responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: Number(input.dueAt.slice(8, 10)) }).eq("id", bill.billId).eq("household_id", householdId);
+        if (templateError) throw templateError;
+      }
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, bills: current.bills.map((item) => item.id === id ? { ...item, ...input } : item) }));
+  }, [data.bills, getHouseholdId, loadRemote]);
+
+  const deleteBill = useCallback(async (id: string) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("bill_occurrences").delete().eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, bills: current.bills.filter((bill) => bill.id !== id) }));
+  }, [getHouseholdId, loadRemote]);
+
+  const addRoom = useCallback(async (input: RoomInput) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("rooms").insert({ household_id: householdId, name: input.name, primary_profile_id: input.primaryProfileId });
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    if (data.rooms.some((room) => room.name.toLowerCase() === input.name.toLowerCase())) throw new Error("A room with this name already exists.");
+    setData((current) => ({ ...current, rooms: [...current.rooms, { id: crypto.randomUUID(), ...input }] }));
+  }, [data.rooms, getHouseholdId, loadRemote]);
+
+  const updateRoom = useCallback(async (id: string, input: RoomInput) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("rooms").update({ name: input.name, primary_profile_id: input.primaryProfileId }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, rooms: current.rooms.map((room) => room.id === id ? { ...room, ...input } : room), plants: current.plants.map((plant) => plant.roomId === id ? { ...plant, assignedProfileId: input.primaryProfileId } : plant), acUnits: current.acUnits.map((unit) => unit.roomId === id ? { ...unit, assignedProfileId: input.primaryProfileId } : unit) }));
+  }, [getHouseholdId, loadRemote]);
+
+  const deleteRoom = useCallback(async (id: string) => {
+    const room = data.rooms.find((item) => item.id === id);
+    if (data.plants.some((plant) => plant.roomId === id) || data.acUnits.some((unit) => unit.roomId === id)) throw new Error(`Move or delete the plants and AC units in ${room?.name || "this room"} first.`);
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("rooms").update({ archived_at: new Date().toISOString() }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, rooms: current.rooms.filter((item) => item.id !== id) }));
+  }, [data.acUnits, data.plants, data.rooms, getHouseholdId, loadRemote]);
+
+  const addProfile = useCallback(async (input: ProfileInput) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("profiles").insert({ household_id: householdId, name: input.name, initials: makeInitials(input.name), color: input.color });
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    if (data.profiles.some((profile) => profile.name.toLowerCase() === input.name.toLowerCase())) throw new Error("A person with this name already exists.");
+    setData((current) => ({ ...current, profiles: [...current.profiles, { id: crypto.randomUUID(), name: input.name, initials: makeInitials(input.name), color: input.color }] }));
+  }, [data.profiles, getHouseholdId, loadRemote]);
+
+  const updateProfile = useCallback(async (id: string, input: ProfileInput) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("profiles").update({ name: input.name, initials: makeInitials(input.name), color: input.color }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, profiles: current.profiles.map((profile) => profile.id === id ? { ...profile, name: input.name, initials: makeInitials(input.name), color: input.color } : profile) }));
+  }, [getHouseholdId, loadRemote]);
+
+  const deleteProfile = useCallback(async (id: string) => {
+    const profile = data.profiles.find((item) => item.id === id);
+    if (data.profiles.length <= 1) throw new Error("Keep at least one person in the household.");
+    const linked = data.rooms.some((room) => room.primaryProfileId === id) || data.plants.some((plant) => plant.assignedProfileId === id) || data.acUnits.some((unit) => unit.assignedProfileId === id) || data.bills.some((bill) => bill.responsibleProfileId === id);
+    if (linked) throw new Error(`Reassign ${profile?.name || "this person"}'s rooms and tracked items before deleting them.`);
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const { error } = await supabase.from("profiles").update({ is_active: false }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, profiles: current.profiles.filter((item) => item.id !== id) }));
+  }, [data.acUnits, data.bills, data.plants, data.profiles, data.rooms, getHouseholdId, loadRemote]);
+
+  const updateActivity = useCallback(async (id: string, input: { occurredAt: string; note?: string; profileId: string }) => {
+    const activity = data.activity.find((item) => item.id === id);
+    if (!activity) throw new Error("Activity entry was not found.");
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const table = activity.type === "maintenance" ? "ac_maintenance_logs" : activity.type === "payment" ? "bill_payments" : "plant_care_logs";
+      const payload = activity.type === "payment" ? { paid_at: input.occurredAt, paid_by_profile_id: input.profileId, note: input.note || null } : { occurred_at: input.occurredAt, performed_by_profile_id: input.profileId, note: input.note || null };
+      const { error } = await supabase.from(table).update(payload).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => {
+      const next = structuredClone(current);
+      const target = next.activity.find((item) => item.id === id);
+      if (target) { target.occurredAt = input.occurredAt; target.profileId = input.profileId; target.detail = input.note || "Completed"; }
+      if (activity.entityId && activity.type === "water") { const plant = next.plants.find((item) => item.id === activity.entityId); if (plant) plant.lastWateredAt = input.occurredAt; }
+      if (activity.entityId && activity.type === "trim") { const plant = next.plants.find((item) => item.id === activity.entityId); if (plant) plant.lastTrimmedAt = input.occurredAt; }
+      if (activity.entityId && activity.type === "maintenance") { const unit = next.acUnits.find((item) => item.id === activity.entityId); if (unit) unit.lastMaintainedAt = input.occurredAt; }
+      if (activity.entityId && activity.type === "payment") { const bill = next.bills.find((item) => item.id === activity.entityId); if (bill) { bill.paidAt = input.occurredAt; bill.paidByProfileId = input.profileId; } }
+      return next;
+    });
+  }, [data.activity, getHouseholdId, loadRemote]);
+
+  const deleteActivity = useCallback(async (id: string) => {
+    const activity = data.activity.find((item) => item.id === id);
+    if (!activity) throw new Error("Activity entry was not found.");
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const householdId = await getHouseholdId();
+      const table = activity.type === "maintenance" ? "ac_maintenance_logs" : activity.type === "payment" ? "bill_payments" : "plant_care_logs";
+      const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id).eq("household_id", householdId);
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, activity: current.activity.filter((item) => item.id !== id) }));
+  }, [data.activity, getHouseholdId, loadRemote]);
+
   const value = useMemo(
-    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, addAC, updatePlantPhoto }),
-    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, addAC, updatePlantPhoto],
+    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto }),
+    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto],
   );
 
   return <HomecareContext.Provider value={value}>{children}</HomecareContext.Provider>;

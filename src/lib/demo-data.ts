@@ -96,6 +96,7 @@ export const demoData: HouseholdData = {
   activity: [
     {
       id: "a1",
+      entityId: "plant-2",
       type: "water",
       title: "Snake plant watered",
       detail: "Main bedroom",
@@ -104,6 +105,7 @@ export const demoData: HouseholdData = {
     },
     {
       id: "a2",
+      entityId: "ac-2",
       type: "maintenance",
       title: "Bedroom AC maintained",
       detail: "Routine service",
@@ -112,6 +114,7 @@ export const demoData: HouseholdData = {
     },
     {
       id: "a3",
+      entityId: "plant-1",
       type: "trim",
       title: "Monstera trimmed",
       detail: "Living room",

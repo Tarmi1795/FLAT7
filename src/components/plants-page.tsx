@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ChangeEvent, useState } from "react";
 import { Camera, Droplets, ImagePlus, Leaf, LoaderCircle, Scissors, UserRound, X } from "lucide-react";
 import { AddPlantDialog } from "@/components/add-asset-dialogs";
+import { DeleteEntryButton, EditPlantDialog } from "@/components/manage-entry-dialogs";
 import { useHomecare } from "@/components/providers";
 import { StatusPill } from "@/components/status-pill";
 import { dateStatus, formatDate, formatRelativeDay, plantTrimDue, plantWaterDue } from "@/lib/homecare";
@@ -65,13 +66,14 @@ function PlantPhotoControl({ plantId, plantName, hasPhoto }: { plantId: string; 
 }
 
 export function PlantsPage() {
-  const { data, recordAction } = useHomecare();
+  const { data, recordAction, deletePlant } = useHomecare();
   return (
     <div>
       <header className="page-header">
         <div><p className="eyebrow">Living collection</p><h1 className="page-title">Plants</h1><p className="page-description">Watering and trimming, remembered for every plant.</p></div>
         <AddPlantDialog />
       </header>
+      {data.plants.length === 0 && <section className="panel mt-7 grid min-h-52 place-items-center p-6 text-center"><div><Leaf className="mx-auto size-8 text-emerald-300" /><h2 className="mt-3 font-bold text-white">No plants yet</h2><p className="mt-1 text-sm text-slate-400">Add your first plant to start tracking its care.</p></div></section>}
       <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {data.plants.map((plant, index) => {
           const room = data.rooms.find((item) => item.id === plant.roomId);
@@ -95,6 +97,10 @@ export function PlantsPage() {
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button className="primary-button min-w-0 px-3" onClick={() => recordAction({ type: "water", entityId: plant.id })}><Droplets className="size-4" />Watered</button>
                   <button className="secondary-button min-w-0 px-3" onClick={() => recordAction({ type: "trim", entityId: plant.id })}><Scissors className="size-4" />Trimmed</button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
+                  <EditPlantDialog plant={plant} />
+                  <DeleteEntryButton itemName={plant.name} itemType="plant" onDelete={() => deletePlant(plant.id)} />
                 </div>
               </div>
             </article>

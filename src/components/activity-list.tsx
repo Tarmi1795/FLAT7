@@ -2,6 +2,7 @@
 
 import { CreditCard, Leaf, Scissors, Snowflake } from "lucide-react";
 import { useHomecare } from "@/components/providers";
+import { DeleteEntryButton, EditActivityDialog } from "@/components/manage-entry-dialogs";
 import { formatRelativeDay } from "@/lib/homecare";
 import type { ActivityItem } from "@/types/homecare";
 
@@ -13,8 +14,9 @@ const colors = {
   payment: "bg-amber-200/10 text-amber-200",
 };
 
-export function ActivityList({ items }: { items: ActivityItem[] }) {
-  const { data } = useHomecare();
+export function ActivityList({ items, manageable = false }: { items: ActivityItem[]; manageable?: boolean }) {
+  const { data, deleteActivity } = useHomecare();
+  if (items.length === 0) return <div className="py-8 text-center text-sm text-slate-400">No activity entries yet.</div>;
   return (
     <div className="divide-y divide-white/[0.06]">
       {items.map((item) => {
@@ -30,7 +32,7 @@ export function ActivityList({ items }: { items: ActivityItem[] }) {
               </div>
               <p className="mt-0.5 truncate text-xs text-slate-400">{item.detail} · by {profile?.name || "Household"}</p>
             </div>
-            <time className="shrink-0 text-xs font-medium text-slate-500" dateTime={item.occurredAt}>{formatRelativeDay(item.occurredAt)}</time>
+            <div className="flex shrink-0 items-center gap-2"><time className="text-xs font-medium text-slate-500" dateTime={item.occurredAt}>{formatRelativeDay(item.occurredAt)}</time>{manageable && <><EditActivityDialog activity={item} /><DeleteEntryButton compact itemName={item.title} itemType="activity entry" detail="This history entry will be archived. The related last-service or payment date will be recalculated from the remaining history." onDelete={() => deleteActivity(item.id)} /></>}</div>
           </article>
         );
       })}

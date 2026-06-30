@@ -38,6 +38,7 @@ export type ACUnit = {
 
 export type BillOccurrence = {
   id: string;
+  billId?: string;
   name: "Internet" | "Rent";
   amount: number;
   dueAt: string;
@@ -46,10 +47,17 @@ export type BillOccurrence = {
   responsibleProfileId?: string;
 };
 
+export type PlantInput = Pick<Plant, "name" | "species" | "roomId" | "waterEveryDays" | "trimEveryDays"> & { photo?: File };
+export type ACInput = Pick<ACUnit, "name" | "roomId" | "maintenanceEveryMonths">;
+export type BillInput = Pick<BillOccurrence, "name" | "amount" | "dueAt" | "responsibleProfileId">;
+export type RoomInput = Pick<Room, "name" | "primaryProfileId">;
+export type ProfileInput = Pick<Profile, "name" | "color">;
+
 export type ActivityType = "water" | "trim" | "maintenance" | "payment";
 
 export type ActivityItem = {
   id: string;
+  entityId?: string;
   type: ActivityType;
   title: string;
   detail: string;
