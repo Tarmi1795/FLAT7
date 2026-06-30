@@ -46,6 +46,7 @@ next-env.d.ts
 # Codex workspace artifacts
 /work/
 /outputs/
+/.codex-remote-attachments/
 
 # generated exports and local Supabase runtime
 /exports/

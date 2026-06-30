@@ -18,12 +18,13 @@ const navigation = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isDashboard = pathname === "/";
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <a href="#main-content" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-emerald-300 px-4 py-2 font-bold text-[#07110c] transition focus:translate-y-0">
         Skip to content
       </a>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-white/[0.08] bg-[#09140e]/95 px-4 py-5 backdrop-blur-xl lg:flex lg:flex-col">
+      <aside className={cn("fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-white/[0.08] bg-[#09140e]/95 px-4 py-5 backdrop-blur-xl lg:flex lg:flex-col", isDashboard && "lg:hidden")}>
         <div className="px-2"><Brand /></div>
         <nav className="mt-10 space-y-1" aria-label="Primary navigation">
           {navigation.map((item) => {
@@ -48,8 +49,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-[248px]">
-        <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-white/[0.06] bg-[#07110c]/85 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className={cn(!isDashboard && "lg:pl-[248px]")}>
+        <header className={cn("sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-white/[0.06] bg-[#07110c]/85 px-4 backdrop-blur-xl sm:px-6 lg:px-8", isDashboard && "hidden")}>
           <div className="lg:hidden"><Brand compact /></div>
           <div className="hidden lg:block">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">FLAT7 household</p>
@@ -57,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <ProfileSwitcher />
         </header>
-        <main id="main-content" className="mx-auto w-full max-w-[1440px] px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+        <main id="main-content" className={cn("mx-auto w-full", isDashboard ? "max-w-[1680px] px-2 pb-28 pt-2 sm:px-4 sm:pt-4 lg:px-6 lg:pb-6 lg:pt-6" : "max-w-[1440px] px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8")}>
           {children}
         </main>
       </div>

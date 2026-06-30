@@ -7,8 +7,8 @@ describe("Dashboard", () => {
   it("renders household priorities and bill information", () => {
     render(<Providers><Dashboard /></Providers>);
     expect(screen.getByRole("heading", { name: /home is mostly on track/i })).toBeInTheDocument();
-    expect(screen.getByText("Needs attention")).toBeInTheDocument();
-    expect(screen.getByText("Upcoming payments")).toBeInTheDocument();
-    expect(screen.getByText("Recent activity")).toBeInTheDocument();
+    expect(screen.getByText("Care completion")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming bills")).toBeInTheDocument();
+    expect(screen.getByText("Household care this week")).toBeInTheDocument();
   });
 });
