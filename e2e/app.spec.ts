@@ -11,6 +11,22 @@ test("dashboard and primary navigation are usable", async ({ page }) => {
   await expect(page.getByText("Choose photo", { exact: true })).toBeVisible();
 });
 
+test("tablet dashboard fits one landscape viewport", async ({ page }) => {
+  for (const viewport of [{ width: 960, height: 600 }, { width: 1920, height: 1200 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await expect(page.getByRole("region", { name: "Profit & Loss · this month" })).toBeVisible();
+    const fit = await page.locator(".dashboard-tablet-scroll").evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      overflowY: getComputedStyle(element).overflowY,
+    }));
+    expect(fit.scrollHeight).toBeLessThanOrEqual(fit.clientHeight);
+    expect(fit.overflowY).toBe("hidden");
+    await expect(page.locator(".dashboard-activity")).toBeInViewport();
+  }
+});
+
 test("quick entry updates plant history", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Create quick entry" }).click();
