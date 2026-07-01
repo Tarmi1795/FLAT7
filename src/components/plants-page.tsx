@@ -8,6 +8,7 @@ import { AddPlantDialog } from "@/components/add-asset-dialogs";
 import { DeleteEntryButton, EditPlantDialog } from "@/components/manage-entry-dialogs";
 import { useHomecare } from "@/components/providers";
 import { StatusPill } from "@/components/status-pill";
+import { DatedActionButton } from "@/components/transaction-date-dialog";
 import { dateStatus, formatDate, formatRelativeDay, plantTrimDue, plantWaterDue } from "@/lib/homecare";
 import { optimizePlantPhoto } from "@/lib/plant-images";
 
@@ -16,6 +17,15 @@ function PlantPhotoControl({ plantId, plantName, hasPhoto }: { plantId: string; 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    window.addEventListener("pointerdown", dismiss); window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("pointerdown", dismiss); window.removeEventListener("keydown", escape); };
+  }, [open]);
 
   const selectPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
@@ -34,7 +44,7 @@ function PlantPhotoControl({ plantId, plantName, hasPhoto }: { plantId: string; 
   };
 
   return (
-    <div className="absolute right-3 top-3 z-20">
+    <div ref={rootRef} className="plant-photo-control relative z-20">
       <button
         type="button"
         className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-[#07110c]/85 px-3 text-xs font-semibold text-white shadow-lg backdrop-blur transition-colors hover:bg-[#0e1a13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
@@ -46,7 +56,7 @@ function PlantPhotoControl({ plantId, plantName, hasPhoto }: { plantId: string; 
         <span className="plant-photo-label">{hasPhoto ? "Change" : "Add photo"}</span>
       </button>
       {open && (
-        <div className="absolute right-0 top-0 w-52 rounded-2xl border border-white/10 bg-[#0e1a13] p-2 shadow-2xl" role="group" aria-label={`Photo options for ${plantName}`}>
+        <div className="plant-photo-menu absolute right-0 top-[calc(100%+.5rem)] w-52 max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 bg-[#0e1a13] p-2 shadow-2xl" role="menu" aria-label={`Photo options for ${plantName}`}>
           <div className="flex items-center justify-between px-2 pb-2 pt-1">
             <span className="text-xs font-semibold text-slate-300">Plant photo</span>
             <button type="button" className="grid size-9 place-items-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" onClick={() => setOpen(false)} aria-label="Close photo options"><X className="size-4" /></button>
@@ -135,9 +145,8 @@ export function PlantsPage() {
               <div className="plant-card-top">
                 <div className={`plant-card-photo relative aspect-square overflow-hidden ${index % 3 === 0 ? "bg-[radial-gradient(circle_at_70%_30%,#2c785044,transparent_48%),#102a1b]" : index % 3 === 1 ? "bg-[radial-gradient(circle_at_25%_20%,#7ba65735,transparent_50%),#17271c]" : "bg-[radial-gradient(circle_at_70%_25%,#66cdaa2b,transparent_52%),#0e2419]"}`}>
                   {plant.image ? <><Image src={plant.image} alt={`${plant.name} plant`} fill unoptimized className="object-cover" sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 33vw" /><div className="absolute inset-0 bg-gradient-to-t from-[#07110c]/90 via-[#07110c]/20 to-[#07110c]/15" /></> : <Leaf className="absolute right-5 top-5 size-24 rotate-12 text-emerald-300/15" strokeWidth={1.2} aria-hidden="true" />}
-                  <PlantPhotoControl plantId={plant.id} plantName={plant.name} hasPhoto={Boolean(plant.image)} />
                 </div>
-                <div className="plant-card-heading"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/90">{plant.species}</p><h2 className="mt-1 text-2xl font-bold text-white">{plant.name}</h2><div className="plant-card-chips mt-3 flex flex-wrap gap-2 text-xs text-slate-400"><span className="chip"><Leaf className="size-3.5" />{room?.name}</span><span className="chip"><UserRound className="size-3.5" />{person?.name}</span></div></div>
+                <div className="plant-card-heading"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/90">{plant.species}</p><h2 className="mt-1 truncate text-2xl font-bold text-white">{plant.name}</h2></div><PlantPhotoControl plantId={plant.id} plantName={plant.name} hasPhoto={Boolean(plant.image)} /></div><div className="plant-card-chips mt-3 flex flex-wrap gap-2 text-xs text-slate-400"><span className="chip"><Leaf className="size-3.5" />{room?.name}</span><span className="chip"><UserRound className="size-3.5" />{person?.name}</span></div></div>
               </div>
               <div className="plant-card-body p-5">
                 <div className="plant-card-metrics grid grid-cols-2 gap-3">
@@ -146,8 +155,8 @@ export function PlantsPage() {
                 </div>
                 <div className="plant-desktop-secondary-actions"><WaterScheduleDialog plantId={plant.id} plantName={plant.name} currentDays={plant.waterEveryDays} /></div>
                 <div className="plant-primary-actions mt-4 grid grid-cols-2 gap-2">
-                  <button className="primary-button min-w-0 px-3" onClick={() => recordAction({ type: "water", entityId: plant.id })}><Droplets className="size-4" />Watered</button>
-                  <button className="secondary-button min-w-0 px-3" onClick={() => recordAction({ type: "trim", entityId: plant.id })}><Scissors className="size-4" />Trimmed</button>
+                  <DatedActionButton title={`Water ${plant.name}`} className="primary-button min-w-0 px-3" onConfirm={(occurredAt) => recordAction({ type: "water", entityId: plant.id, occurredAt })}><Droplets className="size-4" />Watered</DatedActionButton>
+                  <DatedActionButton title={`Trim ${plant.name}`} className="secondary-button min-w-0 px-3" onConfirm={(occurredAt) => recordAction({ type: "trim", entityId: plant.id, occurredAt })}><Scissors className="size-4" />Trimmed</DatedActionButton>
                 </div>
                 <PlantMoreMenu plant={plant} deletePlant={deletePlant} />
                 <div className="plant-desktop-secondary-actions mt-2 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">

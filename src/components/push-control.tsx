@@ -12,8 +12,8 @@ const toBytes = (value: string) => {
 export function PushControl() {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
-  const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  useEffect(() => { if (supported) navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()).then((value) => setEnabled(Boolean(value))); }, [supported]);
+  const [supported, setSupported] = useState(false);
+  useEffect(() => { const check = async () => { const available = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; setSupported(available); if (available) { const registration = await navigator.serviceWorker.ready; setEnabled(Boolean(await registration.pushManager.getSubscription())); } }; void check(); }, []);
   const toggle = async () => {
     if (!supported || !isSupabaseConfigured) return;
     setLoading(true);

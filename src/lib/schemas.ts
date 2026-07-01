@@ -7,11 +7,14 @@ export const joinSchema = z.object({ householdCode: householdCodeSchema, pin: pi
 export const recoverSchema = z.object({ householdCode: householdCodeSchema, recoveryCode: z.string().trim().min(12).max(80), pin: pinSchema });
 export const quickEntrySchema = z.object({
   clientMutationId: z.string().uuid(),
-  type: z.enum(["water", "trim", "maintenance", "payment"]),
+  type: z.enum(["water", "trim", "maintenance", "payment", "collection"]),
   entityId: z.string().uuid(),
   profileId: z.string().uuid(),
   occurredAt: z.string().datetime(),
   note: z.string().trim().max(500).optional(),
+  amount: z.number().positive().optional(),
+}).superRefine((value, context) => {
+  if (value.type === "collection" && !value.amount) context.addIssue({ code: "custom", path: ["amount"], message: "A received amount is required." });
 });
 export const quickEntriesSchema = z.object({ entries: z.array(quickEntrySchema).min(1).max(50) });
 export const pushSubscriptionSchema = z.object({ endpoint: z.string().url(), keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }) });

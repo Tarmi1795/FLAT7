@@ -5,6 +5,7 @@ import { AddACDialog } from "@/components/add-asset-dialogs";
 import { DeleteEntryButton, EditACDialog } from "@/components/manage-entry-dialogs";
 import { useHomecare } from "@/components/providers";
 import { StatusPill } from "@/components/status-pill";
+import { DatedActionButton } from "@/components/transaction-date-dialog";
 import { acMaintenanceDue, dateStatus, formatDate, formatRelativeDay } from "@/lib/homecare";
 
 export function ACPage() {
@@ -25,7 +26,7 @@ export function ACPage() {
               <h2 className="mt-5 text-xl font-bold text-white">{unit.name}</h2>
               <div className="mt-2 flex flex-wrap gap-2"><span className="chip"><Wind className="size-3.5" />{room?.name}</span><span className="chip"><UserRound className="size-3.5" />{person?.name}</span></div>
               <div className="mt-6 grid grid-cols-2 gap-3"><div className="metric-box"><p className="text-xs text-slate-400">Last maintained</p><p className="mt-2 text-lg font-bold text-white">{formatRelativeDay(unit.lastMaintainedAt)}</p><p className="mt-1 text-xs text-slate-500">{formatDate(unit.lastMaintainedAt)}</p></div><div className="metric-box"><p className="text-xs text-slate-400">Next service</p><p className="mt-2 text-lg font-bold text-white">{formatRelativeDay(due)}</p><p className="mt-1 text-xs text-slate-500">Every {unit.maintenanceEveryMonths} months</p></div></div>
-              <button className="primary-button mt-4 w-full" onClick={() => recordAction({ type: "maintenance", entityId: unit.id })}><Check className="size-4" />Mark maintained</button>
+              <DatedActionButton title={`Maintain ${unit.name}`} className="primary-button mt-4 w-full" onConfirm={(occurredAt) => recordAction({ type: "maintenance", entityId: unit.id, occurredAt })}><Check className="size-4" />Mark maintained</DatedActionButton>
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3"><EditACDialog unit={unit} /><DeleteEntryButton itemName={unit.name} itemType="AC unit" onDelete={() => deleteAC(unit.id)} /></div>
             </article>
           );

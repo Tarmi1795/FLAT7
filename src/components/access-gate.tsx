@@ -8,15 +8,16 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/c
 type Mode = "join" | "setup";
 
 export function AccessGate({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [authorized, setAuthorized] = useState(!isSupabaseConfigured);
+  const testBypass = process.env.NEXT_PUBLIC_E2E_MODE === "1";
+  const [loading, setLoading] = useState(isSupabaseConfigured && !testBypass);
+  const [authorized, setAuthorized] = useState(testBypass || !isSupabaseConfigured);
   const [mode, setMode] = useState<Mode>("join");
   const [error, setError] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [householdCode, setHouseholdCode] = useState("");
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (testBypass || !isSupabaseConfigured) return;
     const check = async () => {
       const supabase = getSupabaseBrowserClient()!;
       let { data: { session } } = await supabase.auth.getSession();
@@ -30,7 +31,7 @@ export function AccessGate({ children }: { children: React.ReactNode }) {
       setLoading(false);
     };
     void check();
-  }, []);
+  }, [testBypass]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

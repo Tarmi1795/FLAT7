@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const { data: membership } = await admin.from("device_memberships").select("household_id").eq("auth_user_id", user.id).single();
   if (!membership) return apiError("Join the household before exporting data.", 403);
-  const tables = ["profiles", "rooms", "plants", "plant_care_logs", "ac_units", "ac_maintenance_logs", "bills", "bill_occurrences", "bill_payments"] as const;
+  const tables = ["profiles", "rooms", "plants", "plant_care_logs", "ac_units", "ac_maintenance_logs", "bills", "bill_occurrences", "bill_payments", "collection_templates", "collection_occurrences", "collection_payments"] as const;
   const zip = new JSZip();
   for (const table of tables) {
     const { data } = await admin.from(table).select("*").eq("household_id", membership.household_id);

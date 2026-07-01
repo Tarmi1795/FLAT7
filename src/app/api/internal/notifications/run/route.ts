@@ -11,10 +11,15 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const now = new Date();
   const since = new Date(now.getTime() - 20 * 60_000).toISOString();
-  const { data: jobs, error } = await admin.from("pending_notification_jobs").select("*").gte("scheduled_for", since).lte("scheduled_for", now.toISOString());
+  const [careResult, collectionResult] = await Promise.all([
+    admin.from("pending_notification_jobs").select("*").gte("scheduled_for", since).lte("scheduled_for", now.toISOString()),
+    admin.from("collection_notification_jobs").select("*").gte("scheduled_for", since).lte("scheduled_for", now.toISOString()),
+  ]);
+  const error = careResult.error || collectionResult.error;
   if (error) return apiError(error.message, 500);
+  const jobs = [...(careResult.data || []), ...(collectionResult.data || [])];
   let sent = 0;
-  for (const job of jobs || []) {
+  for (const job of jobs) {
     let query = admin.from("push_subscriptions").select("*").eq("household_id", job.household_id).is("disabled_at", null);
     if (job.profile_id) query = query.eq("profile_id", job.profile_id);
     const { data: subscriptions } = await query;
@@ -32,5 +37,5 @@ export async function POST(request: Request) {
       }
     }
   }
-  return Response.json({ jobs: jobs?.length || 0, sent });
+  return Response.json({ jobs: jobs.length, sent });
 }

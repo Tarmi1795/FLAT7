@@ -15,7 +15,7 @@ test("quick entry updates plant history", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Create quick entry" }).click();
   await page.getByRole("button", { name: "Water plant" }).click();
-  await page.getByRole("button", { name: /record now/i }).click();
+  await page.getByRole("button", { name: /record entry/i }).click();
   await expect(page.getByRole("status")).toContainText(/watered/i);
 });
 
@@ -94,7 +94,7 @@ test("people, rooms, and bills support CRUD", async ({ page }) => {
 });
 
 test("page has no horizontal overflow", async ({ page }) => {
-  for (const route of ["/", "/plants", "/ac", "/bills", "/more", "/activity"]) {
+  for (const route of ["/", "/plants", "/ac", "/bills", "/more", "/activity", "/profit-loss"]) {
     await page.goto(route);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow, `${route} should fit the viewport`).toBe(false);
@@ -105,7 +105,7 @@ test("tablet keyboard shortcuts and compact layout stay within one view", async 
   await page.setViewportSize({ width: 960, height: 600 });
   await page.goto("/");
 
-  for (const [key, route] of [["1", "/"], ["2", "/plants"], ["3", "/ac"], ["4", "/bills"], ["5", "/activity"], ["6", "/more"]]) {
+  for (const [key, route] of [["1", "/"], ["2", "/plants"], ["3", "/ac"], ["4", "/bills"], ["5", "/activity"], ["6", "/more"], ["7", "/profit-loss"]]) {
     await page.keyboard.press(`Alt+${key}`);
     await expect(page).toHaveURL(new RegExp(`${route === "/" ? "/$" : `${route}$`}`));
   }
@@ -122,8 +122,47 @@ test("tablet keyboard shortcuts and compact layout stay within one view", async 
   await expect(page.getByRole("dialog", { name: "Quick entry" })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  await page.keyboard.press("Shift+/");
+  await page.keyboard.type("?");
   await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+});
+
+test("tablet plant photo and retroactive controls stay usable", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 600 });
+  await page.goto("/plants");
+  const card = page.locator(".plant-card").first();
+  const image = card.locator(".plant-card-photo");
+  const photoButton = card.locator(".plant-photo-control > button");
+  await photoButton.click();
+  const imageBox = await image.boundingBox();
+  const buttonBox = await photoButton.boundingBox();
+  const menuBox = await card.locator(".plant-photo-menu").boundingBox();
+  expect(buttonBox!.x).toBeGreaterThanOrEqual(imageBox!.x + imageBox!.width);
+  expect(menuBox!.y).toBeGreaterThanOrEqual(imageBox!.y + imageBox!.height);
+  expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(960);
+  await page.keyboard.press("Escape");
+
+  await card.getByRole("button", { name: "Watered" }).click();
+  const whenDialog = page.getByRole("dialog", { name: "When?" });
+  await expect(whenDialog).toBeVisible();
+  await whenDialog.getByRole("button", { name: "Pick a date" }).click();
+  await expect(whenDialog.locator('input[type="date"]')).toHaveAttribute("max", /\d{4}-\d{2}-\d{2}/);
+});
+
+test("dashboard rail routes with the incoming slide-up transition", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 600 });
+  await page.goto("/");
+  const rail = page.getByRole("navigation", { name: "Dashboard shortcuts" });
+  await expect(rail).toBeVisible();
+  await rail.getByRole("link", { name: "Plants" }).click();
+  await expect(page).toHaveURL(/\/plants$/);
+  await expect(page.locator("main.route-enter")).toHaveCSS("animation-name", "route-slide-up");
+});
+
+test("profit and loss exposes collections and accessible comparison data", async ({ page }) => {
+  await page.goto("/profit-loss");
+  await expect(page.getByRole("heading", { name: "Profit & Loss" })).toBeVisible();
+  await expect(page.getByText("Expected collections", { exact: true })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Monthly collections and expenses" })).toBeVisible();
 });
 
 test("top-aligned forms remain below the sticky tablet header", async ({ page }) => {

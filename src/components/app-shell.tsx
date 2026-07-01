@@ -24,6 +24,7 @@ const shortcuts = [
   { keys: "Alt + 4", label: "Bills", href: "/bills" },
   { keys: "Alt + 5", label: "Activity", href: "/activity" },
   { keys: "Alt + 6", label: "Household", href: "/more" },
+  { keys: "Alt + 7", label: "Profit & Loss", href: "/profit-loss" },
 ] as const;
 
 function isTypingTarget(target: EventTarget | null) {
@@ -79,6 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
+    const timer = document.documentElement.dataset.routeMotion === "slide-up" ? window.setTimeout(() => { delete document.documentElement.dataset.routeMotion; }, 420) : undefined;
     const frame = window.requestAnimationFrame(() => {
       if (window.location.hash) {
         document.querySelector(window.location.hash)?.scrollIntoView({ block: "start" });
@@ -88,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       window.scrollTo({ top: 0, behavior: "auto" });
       mainRef.current?.focus({ preventScroll: true });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => { window.cancelAnimationFrame(frame); if (timer) window.clearTimeout(timer); };
   }, [pathname]);
 
   return (

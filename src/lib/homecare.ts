@@ -37,3 +37,12 @@ export const daysUntil = (date: Date) => differenceInCalendarDays(date, new Date
 export const toDateInput = (value: string | Date) => format(new Date(value), "yyyy-MM-dd'T'HH:mm");
 
 export const isFuture = (value: string | Date) => isAfter(new Date(value), new Date());
+
+export const qatarDate = (value = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Qatar", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
+
+export function qatarDateWithCurrentTime(date: string, now = new Date()) {
+  if (date > qatarDate(now)) throw new Error("Future dates are not allowed.");
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Qatar", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || "00";
+  return new Date(`${date}T${value("hour")}:${value("minute")}:${value("second")}+03:00`).toISOString();
+}

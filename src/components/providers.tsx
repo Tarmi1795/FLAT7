@@ -4,23 +4,30 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { demoData } from "@/lib/demo-data";
 import { enqueueQuickEntry, flushQuickEntries } from "@/lib/offline-queue";
-import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { ACInput, ActivityItem, ActivityType, BillInput, HouseholdData, PlantInput, ProfileInput, RoomInput } from "@/types/homecare";
+import { getSupabaseBrowserClient as getConfiguredSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import type { ACInput, ActivityItem, ActivityType, BillInput, CollectionTemplateInput, ExpenseKind, HouseholdData, PlantInput, ProfileInput, RoomInput } from "@/types/homecare";
 
 type ProfileRow = { id: string; name: string; initials: string; color: string };
 type RoomRow = { id: string; name: string; primary_profile_id: string };
 type PlantRow = { id: string; name: string; species: string | null; room_id: string; assigned_profile_id: string | null; water_every_days: number; trim_every_days: number; last_watered_at: string | null; last_trimmed_at: string | null; created_at: string; photo_path: string | null };
 type ACRow = { id: string; name: string; room_id: string; assigned_profile_id: string | null; maintenance_every_months: number; last_maintained_at: string | null; created_at: string };
-type BillRow = { id: string; bill_id: string; amount: number | string; due_on: string; paid_at: string | null; paid_by_profile_id: string | null; bills: { kind: "Internet" | "Rent"; responsible_profile_id: string | null } | Array<{ kind: "Internet" | "Rent"; responsible_profile_id: string | null }> };
+type BillRow = { id: string; bill_id: string; amount: number | string; due_on: string; paid_at: string | null; paid_by_profile_id: string | null; bills: { kind: ExpenseKind; responsible_profile_id: string | null } | Array<{ kind: ExpenseKind; responsible_profile_id: string | null }> };
+type BillTemplateRow = { id: string; kind: ExpenseKind; default_amount: number | string; due_day: number; start_month: string; responsible_profile_id: string | null; is_active: boolean };
+type CollectionTemplateRow = { id: string; profile_id: string; amount: number | string; due_day: number; start_month: string; is_active: boolean };
+type CollectionRow = { id: string; template_id: string; profile_id: string; billing_month: string; due_on: string; expected_amount: number | string; received_amount: number | string; remaining_amount: number | string; status: "unpaid" | "partial" | "paid"; settled_at: string | null };
+type FinanceSummaryRow = { month: string; expected_collections: number | string; actual_collections: number | string; expected_expenses: number | string; actual_expenses: number | string };
 type ActivityRow = { id: string; type: ActivityType; occurred_at: string; profile_id: string; entity_id: string; note: string | null };
 
 const makeInitials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "?";
+const isHomecareRemoteEnabled = isSupabaseConfigured && process.env.NEXT_PUBLIC_E2E_MODE !== "1";
+const getSupabaseBrowserClient = () => isHomecareRemoteEnabled ? getConfiguredSupabaseClient() : null;
 
 type RecordActionInput = {
   type: ActivityType;
   entityId: string;
   occurredAt?: string;
   note?: string;
+  amount?: number;
 };
 
 type HomecareContextValue = {
@@ -37,8 +44,9 @@ type HomecareContextValue = {
   updateAC: (id: string, input: ACInput) => Promise<void>;
   deleteAC: (id: string) => Promise<void>;
   addBill: (input: BillInput) => Promise<void>;
-  updateBill: (id: string, input: BillInput) => Promise<void>;
-  deleteBill: (id: string) => Promise<void>;
+  updateBill: (id: string, input: BillInput, scope?: "month" | "future") => Promise<void>;
+  deleteBill: (id: string, scope?: "month" | "future") => Promise<void>;
+  saveCollectionTemplate: (input: CollectionTemplateInput) => Promise<void>;
   addRoom: (input: RoomInput) => Promise<void>;
   updateRoom: (id: string, input: RoomInput) => Promise<void>;
   deleteRoom: (id: string) => Promise<void>;
@@ -65,12 +73,18 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     const { data: membership } = await supabase.from("device_memberships").select("household_id,selected_profile_id").eq("auth_user_id", session.user.id).maybeSingle();
     if (!membership) return;
     const householdId = membership.household_id as string;
-    const [profilesResult, roomsResult, plantsResult, acResult, billsResult, activityResult] = await Promise.all([
+    const historyStart = new Date();
+    historyStart.setMonth(historyStart.getMonth() - 11, 1);
+    const [profilesResult, roomsResult, plantsResult, acResult, billTemplatesResult, billsResult, collectionTemplatesResult, collectionsResult, financeResult, activityResult] = await Promise.all([
       supabase.from("profiles").select("*").eq("household_id", householdId).eq("is_active", true).order("created_at"),
       supabase.from("rooms").select("*").eq("household_id", householdId).is("archived_at", null).order("name"),
       supabase.from("plants").select("*").eq("household_id", householdId).is("archived_at", null).order("name"),
       supabase.from("ac_units").select("*").eq("household_id", householdId).is("archived_at", null).order("name"),
-      supabase.from("bill_occurrences").select("*,bills!inner(kind,responsible_profile_id)").eq("household_id", householdId).gte("due_on", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10)).order("due_on"),
+      supabase.from("bills").select("*").eq("household_id", householdId).order("kind"),
+      supabase.from("bill_occurrences").select("*,bills!inner(kind,responsible_profile_id)").eq("household_id", householdId).gte("billing_month", historyStart.toISOString().slice(0, 10)).order("due_on"),
+      supabase.from("collection_templates").select("*").eq("household_id", householdId).order("created_at"),
+      supabase.from("collection_balances").select("*").eq("household_id", householdId).gte("billing_month", historyStart.toISOString().slice(0, 10)).order("due_on"),
+      supabase.from("monthly_financial_summary").select("*").eq("household_id", householdId).gte("month", historyStart.toISOString().slice(0, 10)).order("month"),
       supabase.from("activity_feed").select("*").eq("household_id", householdId).is("archived_at", null).order("occurred_at", { ascending: false }).limit(100),
     ]);
     const profiles = ((profilesResult.data || []) as ProfileRow[]).map((row) => ({ id: row.id, name: row.name, initials: row.initials, color: row.color }));
@@ -84,14 +98,18 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     }));
     const plants = plantRows.map((row, index) => ({ id: row.id, name: row.name, species: row.species || "House plant", roomId: row.room_id, assignedProfileId: row.assigned_profile_id || rooms.find((room) => room.id === row.room_id)?.primaryProfileId || profiles[0]?.id, waterEveryDays: row.water_every_days, trimEveryDays: row.trim_every_days, lastWateredAt: row.last_watered_at || row.created_at || fallbackDate, lastTrimmedAt: row.last_trimmed_at || row.created_at || fallbackDate, image: signedPlantImages[index], photoPath: row.photo_path || undefined }));
     const acUnits = ((acResult.data || []) as ACRow[]).map((row) => ({ id: row.id, name: row.name, roomId: row.room_id, assignedProfileId: row.assigned_profile_id || rooms.find((room) => room.id === row.room_id)?.primaryProfileId || profiles[0]?.id, maintenanceEveryMonths: row.maintenance_every_months, lastMaintainedAt: row.last_maintained_at || row.created_at || fallbackDate }));
+    const billTemplates = ((billTemplatesResult.data || []) as BillTemplateRow[]).map((row) => ({ id: row.id, name: row.kind, defaultAmount: Number(row.default_amount), dueDay: row.due_day, startMonth: row.start_month, responsibleProfileId: row.responsible_profile_id || undefined, isActive: row.is_active }));
     const bills = ((billsResult.data || []) as BillRow[]).map((row) => { const bill = Array.isArray(row.bills) ? row.bills[0] : row.bills; return { id: row.id, billId: row.bill_id, name: bill.kind, amount: Number(row.amount), dueAt: row.due_on, paidAt: row.paid_at || undefined, paidByProfileId: row.paid_by_profile_id || undefined, responsibleProfileId: bill.responsible_profile_id || undefined }; });
-    const activity = ((activityResult.data || []) as ActivityRow[]).map((row) => { const entity = row.type === "maintenance" ? acUnits.find((item) => item.id === row.entity_id) : row.type === "payment" ? bills.find((item) => item.id === row.entity_id) : plants.find((item) => item.id === row.entity_id); const verb = row.type === "water" ? "watered" : row.type === "trim" ? "trimmed" : row.type === "maintenance" ? "maintained" : "paid"; return { id: row.id, entityId: row.entity_id, type: row.type, title: `${entity?.name || "Household item"} ${verb}`, detail: row.note || "Completed", occurredAt: row.occurred_at, profileId: row.profile_id }; });
-    setData({ profiles, rooms, plants, acUnits, bills, activity });
+    const collectionTemplates = ((collectionTemplatesResult.data || []) as CollectionTemplateRow[]).map((row) => ({ id: row.id, profileId: row.profile_id, amount: Number(row.amount), dueDay: row.due_day, startMonth: row.start_month, isActive: row.is_active }));
+    const collections = ((collectionsResult.data || []) as CollectionRow[]).map((row) => ({ id: row.id, templateId: row.template_id, profileId: row.profile_id, billingMonth: row.billing_month, dueAt: row.due_on, expectedAmount: Number(row.expected_amount), receivedAmount: Number(row.received_amount), remainingAmount: Number(row.remaining_amount), status: row.status, settledAt: row.settled_at || undefined }));
+    const financeSummaries = ((financeResult.data || []) as FinanceSummaryRow[]).map((row) => ({ month: row.month, expectedCollections: Number(row.expected_collections), actualCollections: Number(row.actual_collections), expectedExpenses: Number(row.expected_expenses), actualExpenses: Number(row.actual_expenses) }));
+    const activity = ((activityResult.data || []) as ActivityRow[]).map((row) => { const entity = row.type === "maintenance" ? acUnits.find((item) => item.id === row.entity_id) : row.type === "payment" ? bills.find((item) => item.id === row.entity_id) : row.type === "collection" ? collections.find((item) => item.id === row.entity_id) : plants.find((item) => item.id === row.entity_id); const collectionProfile = row.type === "collection" && entity && "profileId" in entity ? profiles.find((item) => item.id === entity.profileId) : undefined; const verb = row.type === "water" ? "watered" : row.type === "trim" ? "trimmed" : row.type === "maintenance" ? "maintained" : row.type === "payment" ? "paid" : "contribution received"; const entityName = collectionProfile?.name || (entity && "name" in entity ? entity.name : undefined) || "Household item"; return { id: row.id, entityId: row.entity_id, type: row.type, title: `${entityName} ${verb}`, detail: row.note || "Completed", occurredAt: row.occurred_at, profileId: row.profile_id }; });
+    setData({ profiles, rooms, plants, acUnits, billTemplates, bills, collectionTemplates, collections, financeSummaries, activity });
     if (membership.selected_profile_id) setProfile(membership.selected_profile_id as string);
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (!isHomecareRemoteEnabled) return;
     const supabase = getSupabaseBrowserClient()!;
     const reload = () => void loadRemote();
     window.addEventListener("flat7-access-changed", reload);
@@ -108,7 +126,7 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const recordAction = useCallback(
-    ({ type, entityId, occurredAt = new Date().toISOString(), note }: RecordActionInput) => {
+    ({ type, entityId, occurredAt = new Date().toISOString(), note, amount }: RecordActionInput) => {
       const id = crypto.randomUUID();
       let title = "Activity recorded";
       let detail = note || "Completed just now";
@@ -130,13 +148,25 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
             title = `${unit.name} maintained`;
             detail = note || "Routine maintenance";
           }
-        } else {
+        } else if (type === "payment") {
           const bill = next.bills.find((item) => item.id === entityId);
           if (bill) {
             bill.paidAt = occurredAt;
             bill.paidByProfileId = activeProfileId;
             title = `${bill.name} marked paid`;
             detail = note || `Payment recorded`;
+          }
+        } else {
+          const contribution = next.collections.find((item) => item.id === entityId);
+          if (contribution) {
+            const received = Math.min(amount || contribution.remainingAmount, contribution.remainingAmount);
+            contribution.receivedAmount += received;
+            contribution.remainingAmount = Math.max(0, contribution.expectedAmount - contribution.receivedAmount);
+            contribution.status = contribution.remainingAmount === 0 ? "paid" : "partial";
+            if (contribution.status === "paid") contribution.settledAt = occurredAt;
+            const person = next.profiles.find((item) => item.id === contribution.profileId);
+            title = `${person?.name || "Housemate"} contribution received`;
+            detail = note || `QAR ${received.toLocaleString("en-QA")} received`;
           }
         }
         const activity: ActivityItem = {
@@ -152,8 +182,8 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
         next.activity.unshift(activity);
         return next;
       });
-      if (isSupabaseConfigured) {
-        const entry = { clientMutationId: id, type, entityId, profileId: activeProfileId, occurredAt, note };
+      if (isHomecareRemoteEnabled) {
+        const entry = { clientMutationId: id, type, entityId, profileId: activeProfileId, occurredAt, note, amount };
         void enqueueQuickEntry(entry).then(() => flushQuickEntries()).then(() => loadRemote());
       }
       return { id, type, title, detail, occurredAt, profileId: activeProfileId };
@@ -316,18 +346,13 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
       const householdId = await getHouseholdId();
       const dueDay = Number(input.dueAt.slice(8, 10));
       const { data: existing } = await supabase.from("bills").select("id").eq("household_id", householdId).eq("kind", input.name).maybeSingle();
-      let billId = existing?.id as string | undefined;
-      if (billId) {
-        const { error } = await supabase.from("bills").update({ responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: dueDay, is_active: true }).eq("id", billId).eq("household_id", householdId);
+      if (existing?.id) {
+        const { error } = await supabase.from("bills").update({ responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: dueDay, start_month: `${input.dueAt.slice(0, 7)}-01`, is_active: true }).eq("id", existing.id).eq("household_id", householdId);
         if (error) throw error;
       } else {
-        const { data: created, error } = await supabase.from("bills").insert({ household_id: householdId, kind: input.name, responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: dueDay }).select("id").single();
+        const { error } = await supabase.from("bills").insert({ household_id: householdId, kind: input.name, responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: dueDay, start_month: `${input.dueAt.slice(0, 7)}-01` });
         if (error) throw error;
-        billId = created.id;
       }
-      const { error } = await supabase.from("bill_occurrences").insert({ household_id: householdId, bill_id: billId, billing_month: `${input.dueAt.slice(0, 7)}-01`, due_on: input.dueAt, amount: input.amount });
-      if (error?.code === "23505") throw new Error(`${input.name} already has a bill for this month.`);
-      if (error) throw error;
       await loadRemote();
       return;
     }
@@ -335,34 +360,38 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     setData((current) => ({ ...current, bills: [...current.bills, { id: crypto.randomUUID(), ...input }] }));
   }, [data.bills, getHouseholdId, loadRemote]);
 
-  const updateBill = useCallback(async (id: string, input: BillInput) => {
-    const bill = data.bills.find((item) => item.id === id);
+  const updateBill = useCallback(async (id: string, input: BillInput, scope: "month" | "future" = "month") => {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
-      const householdId = await getHouseholdId();
-      const { error } = await supabase.from("bill_occurrences").update({ amount: input.amount, due_on: input.dueAt, billing_month: `${input.dueAt.slice(0, 7)}-01` }).eq("id", id).eq("household_id", householdId);
+      const { error } = await supabase.rpc("update_bill_series", { occurrence_id: id, next_amount: input.amount, next_due_day: Number(input.dueAt.slice(8, 10)), next_responsible_profile_id: input.responsibleProfileId || null, change_scope: scope });
       if (error) throw error;
-      if (bill?.billId) {
-        const { error: templateError } = await supabase.from("bills").update({ responsible_profile_id: input.responsibleProfileId || null, default_amount: input.amount, due_day: Number(input.dueAt.slice(8, 10)) }).eq("id", bill.billId).eq("household_id", householdId);
-        if (templateError) throw templateError;
-      }
       await loadRemote();
       return;
     }
     setData((current) => ({ ...current, bills: current.bills.map((item) => item.id === id ? { ...item, ...input } : item) }));
-  }, [data.bills, getHouseholdId, loadRemote]);
+  }, [loadRemote]);
 
-  const deleteBill = useCallback(async (id: string) => {
+  const deleteBill = useCallback(async (id: string, scope: "month" | "future" = "month") => {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
-      const householdId = await getHouseholdId();
-      const { error } = await supabase.from("bill_occurrences").delete().eq("id", id).eq("household_id", householdId);
+      const { error } = await supabase.rpc("delete_bill_series", { occurrence_id: id, change_scope: scope });
       if (error) throw error;
       await loadRemote();
       return;
     }
     setData((current) => ({ ...current, bills: current.bills.filter((bill) => bill.id !== id) }));
-  }, [getHouseholdId, loadRemote]);
+  }, [loadRemote]);
+
+  const saveCollectionTemplate = useCallback(async (input: CollectionTemplateInput) => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const { error } = await supabase.rpc("save_collection_template", { target_profile_id: input.profileId, next_amount: input.amount, next_due_day: input.dueDay, next_start_month: input.startMonth, next_is_active: input.isActive });
+      if (error) throw error;
+      await loadRemote();
+      return;
+    }
+    setData((current) => ({ ...current, collectionTemplates: current.collectionTemplates.some((item) => item.profileId === input.profileId) ? current.collectionTemplates.map((item) => item.profileId === input.profileId ? { ...item, ...input } : item) : [...current.collectionTemplates, { id: crypto.randomUUID(), ...input }] }));
+  }, [loadRemote]);
 
   const addRoom = useCallback(async (input: RoomInput) => {
     const supabase = getSupabaseBrowserClient();
@@ -431,7 +460,7 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
   const deleteProfile = useCallback(async (id: string) => {
     const profile = data.profiles.find((item) => item.id === id);
     if (data.profiles.length <= 1) throw new Error("Keep at least one person in the household.");
-    const linked = data.rooms.some((room) => room.primaryProfileId === id) || data.plants.some((plant) => plant.assignedProfileId === id) || data.acUnits.some((unit) => unit.assignedProfileId === id) || data.bills.some((bill) => bill.responsibleProfileId === id);
+    const linked = data.rooms.some((room) => room.primaryProfileId === id) || data.plants.some((plant) => plant.assignedProfileId === id) || data.acUnits.some((unit) => unit.assignedProfileId === id) || data.bills.some((bill) => bill.responsibleProfileId === id) || data.collectionTemplates.some((template) => template.profileId === id && template.isActive && template.amount > 0);
     if (linked) throw new Error(`Reassign ${profile?.name || "this person"}'s rooms and tracked items before deleting them.`);
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
@@ -442,7 +471,7 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setData((current) => ({ ...current, profiles: current.profiles.filter((item) => item.id !== id) }));
-  }, [data.acUnits, data.bills, data.plants, data.profiles, data.rooms, getHouseholdId, loadRemote]);
+  }, [data.acUnits, data.bills, data.collectionTemplates, data.plants, data.profiles, data.rooms, getHouseholdId, loadRemote]);
 
   const updateActivity = useCallback(async (id: string, input: { occurredAt: string; note?: string; profileId: string }) => {
     const activity = data.activity.find((item) => item.id === id);
@@ -450,8 +479,8 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
       const householdId = await getHouseholdId();
-      const table = activity.type === "maintenance" ? "ac_maintenance_logs" : activity.type === "payment" ? "bill_payments" : "plant_care_logs";
-      const payload = activity.type === "payment" ? { paid_at: input.occurredAt, paid_by_profile_id: input.profileId, note: input.note || null } : { occurred_at: input.occurredAt, performed_by_profile_id: input.profileId, note: input.note || null };
+      const table = activity.type === "maintenance" ? "ac_maintenance_logs" : activity.type === "payment" ? "bill_payments" : activity.type === "collection" ? "collection_payments" : "plant_care_logs";
+      const payload = activity.type === "payment" ? { paid_at: input.occurredAt, paid_by_profile_id: input.profileId, note: input.note || null } : activity.type === "collection" ? { received_at: input.occurredAt, received_by_profile_id: input.profileId, note: input.note || null } : { occurred_at: input.occurredAt, performed_by_profile_id: input.profileId, note: input.note || null };
       const { error } = await supabase.from(table).update(payload).eq("id", id).eq("household_id", householdId);
       if (error) throw error;
       await loadRemote();
@@ -475,7 +504,7 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
       const householdId = await getHouseholdId();
-      const table = activity.type === "maintenance" ? "ac_maintenance_logs" : activity.type === "payment" ? "bill_payments" : "plant_care_logs";
+      const table = activity.type === "maintenance" ? "ac_maintenance_logs" : activity.type === "payment" ? "bill_payments" : activity.type === "collection" ? "collection_payments" : "plant_care_logs";
       const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id).eq("household_id", householdId);
       if (error) throw error;
       await loadRemote();
@@ -485,8 +514,8 @@ function HomecareProvider({ children }: { children: React.ReactNode }) {
   }, [data.activity, getHouseholdId, loadRemote]);
 
   const value = useMemo(
-    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, updatePlantWaterSchedule, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto }),
-    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, updatePlantWaterSchedule, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto],
+    () => ({ data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, updatePlantWaterSchedule, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, saveCollectionTemplate, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto }),
+    [data, activeProfileId, setActiveProfileId, recordAction, undoLast, addPlant, updatePlant, updatePlantWaterSchedule, deletePlant, addAC, updateAC, deleteAC, addBill, updateBill, deleteBill, saveCollectionTemplate, addRoom, updateRoom, deleteRoom, addProfile, updateProfile, deleteProfile, updateActivity, deleteActivity, updatePlantPhoto],
   );
 
   return <HomecareContext.Provider value={value}>{children}</HomecareContext.Provider>;

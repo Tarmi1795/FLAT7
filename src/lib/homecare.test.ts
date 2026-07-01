@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { acMaintenanceDue, billStatus, dateStatus, formatQar, plantTrimDue, plantWaterDue } from "@/lib/homecare";
+import { acMaintenanceDue, billStatus, dateStatus, formatQar, plantTrimDue, plantWaterDue, qatarDateWithCurrentTime } from "@/lib/homecare";
 import type { ACUnit, BillOccurrence, Plant } from "@/types/homecare";
 
 const plant: Plant = { id: "1", name: "Fern", species: "Fern", roomId: "r", assignedProfileId: "p", waterEveryDays: 7, trimEveryDays: 30, lastWateredAt: "2026-06-01T08:00:00.000Z", lastTrimmedAt: "2026-06-01T08:00:00.000Z" };
@@ -31,5 +31,13 @@ describe("homecare scheduling", () => {
 
   it("formats QAR amounts", () => {
     expect(formatQar(6200)).toContain("6,200");
+  });
+
+  it("combines a retroactive date with the current Qatar time", () => {
+    expect(qatarDateWithCurrentTime("2026-06-30", new Date("2026-07-01T09:34:56Z"))).toBe("2026-06-30T09:34:56.000Z");
+  });
+
+  it("rejects future transaction dates", () => {
+    expect(() => qatarDateWithCurrentTime("2026-07-02", new Date("2026-07-01T09:34:56Z"))).toThrow("Future dates");
   });
 });

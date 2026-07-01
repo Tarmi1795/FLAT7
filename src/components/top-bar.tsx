@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Check, ChevronDown, CreditCard, Leaf, Settings, Snowflake, UserRound, X } from "lucide-react";
+import { BarChart3, Bell, Check, ChevronDown, CreditCard, Leaf, Settings, Snowflake, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Brand } from "@/components/brand";
 import { LogoutButton } from "@/components/logout-button";
@@ -14,6 +14,7 @@ const navigation = [
   { href: "/", label: "Dashboard" }, { href: "/plants", label: "Plants", menuKey: "plants" as const },
   { href: "/ac", label: "AC units", menuKey: "ac" as const }, { href: "/bills", label: "Bills", menuKey: "bills" as const },
   { href: "/activity", label: "Activity" }, { href: "/more", label: "Household" },
+  { href: "/profit-loss", label: "P&L", icon: BarChart3 },
 ];
 
 export function TopBar() {

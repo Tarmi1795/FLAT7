@@ -1,17 +1,18 @@
 "use client";
 
-import { CreditCard, Leaf, Scissors, Snowflake } from "lucide-react";
+import { CreditCard, HandCoins, Leaf, Scissors, Snowflake } from "lucide-react";
 import { useHomecare } from "@/components/providers";
 import { DeleteEntryButton, EditActivityDialog } from "@/components/manage-entry-dialogs";
 import { formatRelativeDay } from "@/lib/homecare";
 import type { ActivityItem } from "@/types/homecare";
 
-const icons = { water: Leaf, trim: Scissors, maintenance: Snowflake, payment: CreditCard };
+const icons = { water: Leaf, trim: Scissors, maintenance: Snowflake, payment: CreditCard, collection: HandCoins };
 const colors = {
   water: "bg-emerald-300/10 text-emerald-300",
   trim: "bg-lime-300/10 text-lime-300",
   maintenance: "bg-sky-300/10 text-sky-300",
   payment: "bg-amber-200/10 text-amber-200",
+  collection: "bg-violet-300/10 text-violet-200",
 };
 
 export function ActivityList({ items, manageable = false }: { items: ActivityItem[]; manageable?: boolean }) {

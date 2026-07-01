@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Bell, ChevronRight, KeyRound, MapPinHouse, Settings, ShieldCheck, UsersRound, Wifi } from "lucide-react";
+import { Activity, BarChart3, Bell, ChevronRight, KeyRound, MapPinHouse, Settings, ShieldCheck, UsersRound, Wifi } from "lucide-react";
 import { useHomecare } from "@/components/providers";
 import { PushControl } from "@/components/push-control";
 import { ExportButton } from "@/components/export-button";
@@ -9,6 +9,7 @@ import { DeleteEntryButton, ProfileDialog, RoomDialog } from "@/components/manag
 import { LogoutButton } from "@/components/logout-button";
 
 const items = [
+  { href: "/profit-loss", title: "Profit & Loss", detail: "Collections, expenses, and roommate balances", icon: BarChart3 },
   { href: "/activity", title: "Activity history", detail: "Review, correct, or archive entries", icon: Activity },
   { href: "/more", title: "Notifications", detail: "Category defaults and per-item reminders", icon: Bell },
   { href: "/more", title: "Access & recovery", detail: "Change the shared PIN or recovery code", icon: KeyRound },
