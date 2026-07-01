@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Activity, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2, CreditCard, Droplets, HandCoins, Home, Leaf, MapPinHouse, Snowflake, Sparkles, UsersRound, WalletCards } from "lucide-react";
+import { Activity, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2, CreditCard, Droplets, Home, Leaf, MapPinHouse, Snowflake, Sparkles, TrendingDown, TrendingUp, UsersRound, WalletCards } from "lucide-react";
 import { useHomecare } from "@/components/providers";
 import { CollectionPaymentDialog } from "@/components/profit-loss-page";
 import { StatusPill } from "@/components/status-pill";
@@ -28,6 +28,17 @@ export function Dashboard() {
   const outstanding = openBills.reduce((sum, bill) => sum + bill.amount, 0);
   const currentMonth = qatarDate().slice(0, 7);
   const owing = data.collections.filter((item) => item.billingMonth.startsWith(currentMonth) && item.status !== "paid");
+  const monthCollections = data.collections.filter((item) => item.billingMonth.startsWith(currentMonth));
+  const monthBills = data.bills.filter((item) => item.dueAt.startsWith(currentMonth));
+  const finance = data.financeSummaries.find((item) => item.month.startsWith(currentMonth)) || {
+    expectedCollections: monthCollections.reduce((sum, item) => sum + item.expectedAmount, 0),
+    actualCollections: monthCollections.reduce((sum, item) => sum + item.receivedAmount, 0),
+    expectedExpenses: monthBills.reduce((sum, item) => sum + item.amount, 0),
+    actualExpenses: monthBills.filter((item) => item.paidAt).reduce((sum, item) => sum + item.amount, 0),
+  };
+  const expectedProfit = finance.expectedCollections - finance.expectedExpenses;
+  const cashProfit = finance.actualCollections - finance.actualExpenses;
+  const ProfitIcon = cashProfit >= 0 ? TrendingUp : TrendingDown;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const activityCounts = Array.from({ length: 7 }, (_, index) => {
@@ -57,7 +68,31 @@ export function Dashboard() {
               <h1 className="mt-2 text-3xl font-semibold leading-[1.02] tracking-[-.045em] text-white sm:text-4xl xl:text-[3rem]">FLAT7 at a glance.</h1>
             </div>
 
-            <div className={`${glassCard} max-w-xl p-4 sm:p-5`}>
+            <section className={`${glassCard} dashboard-profit-loss p-4`} aria-labelledby="dashboard-profit-loss-title">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${cashProfit >= 0 ? "bg-emerald-300/15 text-emerald-200" : "bg-rose-300/15 text-rose-200"}`}><ProfitIcon className="size-5" /></span>
+                  <div className="min-w-0">
+                    <p id="dashboard-profit-loss-title" className="text-xs font-semibold text-slate-300">Profit &amp; Loss · this month</p>
+                    <p className={`mt-1 text-xl font-bold tabular-nums ${cashProfit >= 0 ? "text-emerald-200" : "text-rose-200"}`}>{formatQar(cashProfit)}</p>
+                  </div>
+                </div>
+                <Link href="/profit-loss" className="grid size-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition hover:bg-white/[0.12]" aria-label="Open profit and loss"><ArrowUpRight className="size-4" /></Link>
+              </div>
+              <div className="dashboard-profit-metrics mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-2"><p className="text-slate-400">Expected result</p><p className={`mt-1 font-bold tabular-nums ${expectedProfit >= 0 ? "text-white" : "text-rose-200"}`}>{formatQar(expectedProfit)}</p></div>
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-2"><p className="text-slate-400">Still to collect</p><p className="mt-1 font-bold tabular-nums text-white">{formatQar(owing.reduce((sum, item) => sum + item.remainingAmount, 0))}</p></div>
+              </div>
+              <div className="dashboard-collection-list mt-3 space-y-2">
+                {owing.slice(0, 2).map((item) => {
+                  const person = data.profiles.find((candidate) => candidate.id === item.profileId);
+                  return <div key={item.id} className="dashboard-collection-row flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/15 p-2"><span className="grid size-8 shrink-0 place-items-center rounded-full text-[10px] font-black text-[#07110c]" style={{ backgroundColor: person?.color }}>{person?.initials}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{person?.name}</p><p className="text-[10px] text-slate-400">Owes {formatQar(item.remainingAmount)}</p></div><CollectionPaymentDialog item={item} compact /></div>;
+                })}
+                {owing.length === 0 && <div className="flex min-h-11 items-center gap-2 rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] px-3 text-xs font-semibold text-emerald-100"><CheckCircle2 className="size-4" />All contributions collected</div>}
+              </div>
+            </section>
+
+            <div className={`${glassCard} dashboard-household-card max-w-xl p-4 sm:p-5`}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-300 text-[#07110c]"><UsersRound className="size-5" /></span>
                 <div className="min-w-0 flex-1"><p className="font-bold text-white">FLAT7 household</p><p className="mt-1 text-sm text-slate-300">{data.rooms.length} rooms · {data.profiles.length} people · shared care</p></div>
@@ -98,7 +133,6 @@ export function Dashboard() {
               <div className="flex items-center justify-between"><div className="flex items-center gap-2"><MapPinHouse className="size-4 text-emerald-200" /><h2 className="text-sm font-semibold text-white">Room ownership</h2></div><Link href="/more" className="grid size-11 place-items-center rounded-full text-slate-300 transition hover:bg-white/[0.08] hover:text-white" aria-label="Manage rooms"><ArrowUpRight className="size-4" /></Link></div>
               <div className="mt-2 flex flex-wrap gap-2">{data.rooms.slice(0, 4).map((room) => { const person = data.profiles.find((item) => item.id === room.primaryProfileId); return <span key={room.id} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.05] px-3 text-xs font-semibold text-slate-200"><span className="size-2 rounded-full" style={{ backgroundColor: person?.color }} />{room.name}</span>; })}</div>
             </section>
-            {owing.length > 0 && <section className={`${glassCard} p-4`}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><HandCoins className="size-4 text-violet-200" /><h2 className="text-sm font-semibold text-white">Still to collect</h2></div><Link href="/profit-loss" className="text-xs font-bold text-emerald-200">Open P&amp;L</Link></div><div className="mt-3 space-y-2">{owing.slice(0, 3).map((item) => { const person = data.profiles.find((profile) => profile.id === item.profileId); return <div key={item.id} className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] p-2"><span className="grid size-8 place-items-center rounded-full text-[10px] font-black text-[#07110c]" style={{ backgroundColor: person?.color }}>{person?.initials}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{person?.name}</p><p className="text-[10px] text-slate-400">Owes {formatQar(item.remainingAmount)}</p></div><CollectionPaymentDialog item={item} compact /></div>; })}</div></section>}
           </div>
 
           <section className={`${glassCard} dashboard-activity min-h-44 p-5 md:col-span-2 xl:col-start-2 xl:col-span-2`} aria-labelledby="activity-chart-title">

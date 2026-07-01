@@ -9,6 +9,9 @@ describe("Dashboard", () => {
     expect(screen.getByRole("heading", { name: /flat7 at a glance/i })).toBeInTheDocument();
     expect(screen.getByText("Care completion")).toBeInTheDocument();
     expect(screen.getByText("Upcoming bills")).toBeInTheDocument();
+    expect(screen.getByText(/Profit & Loss/)).toBeInTheDocument();
+    expect(screen.getByText("Still to collect")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /record payment received from/i }).length).toBeGreaterThan(0);
     expect(screen.getByText("Household care this week")).toBeInTheDocument();
   });
 });
